@@ -1,127 +1,58 @@
-
-double determinant(double** c){
-    return c[0][0]*(c[1][1]*c[2][2]-c[1][2]*c[2][1])
-        +c[0][1]*(c[1][2]*c[2][0]-c[1][0]*c[2][1])
-        +c[0][2]*(c[1][0]*c[2][1]-c[1][1]*c[2][0]);
-}
-
-double calculate(const int dim, double* arr, const int p){
-    double* arr_p= new double [dim];
-    for (int i = 0; i < dim; i++)
-    {
-        arr_p[i]=pow(arr[i],p);
-    }
-    int s=0;
-    for (int i = 0; i < dim; i++)
-    {
-        s+=arr_p[i];
-    }
-    delete[] arr_p;
-    return s;
-}
-
-double calculate(const int dim, double* arr1, double* arr2, const int p){
-    double* arr_p= new double [dim];
-    for (int i = 0; i < dim; i++)
-    {
-        arr_p[i]=pow(arr2[i],p);
-    }
-    int s=0;
-    for (int i = 0; i < dim; i++)
-    {
-        s+=arr1[i]*arr_p[i];
-    }
-    delete[] arr_p;
-    return s;
-}
-
-
 //r variable
-double r_c,r_o;
+//position of loops
+const double r_c=0.12000, r_o=0.699000;
 double r_out,delta_r,psi_c,psi_o,tangent;
 
 //z variable
-#define dim_z 6
+#define dim_z 8
 
-double z_o[dim_z];
 double psi[dim_z];
 double z_out;
-
-//coefficients of equation
-double c1[3][3];
-double c2[3];
-double cA[3][3];
-double cB[3][3];
-
-//determinants
-double dc,dA,dB;
-
 double A,B;
 
-// void setup(){
-//     // //read r_c,r_o
-//     // {
+//coefficients of fitting
+const double c[3][8]={
+{     -0.10157325      0.10741101      0.28746355      0.37565219      0.30099177     0.17140523    -0.064258453    -0.077091960},
+{      0.85464802      0.59017087      0.29084170    -0.034480695     -0.28178700     -0.40168786     -0.50693151     -0.51077351},
+{       3.8203913      0.60522721      -2.2069399      -3.6896237      -2.7423851     -0.91601104       2.4718668       2.6574733}};
 
-//     // }
-//     // //read z_o
-//     // {
-
-//     // }
-// }
+void setup(){
     
-// void loop(){
-    // //read psi_c,psi_o,tangent for r_out
-    // {
+}
+    
+void loop(){
 
-    // }
-    // //read psi for z_out
-    // {
-
-    // }
-
+    //read psi for z_out
+    //psi[0] and psi[7] are fluc loop
+    //psi[1] to psi[6] are saddle loop
+    for (int i = 0; i < dim_z; i++)
+    {
+        psi[i]=analogRead(A1+i);
+    }
+    for (int i = 1; i < dim_z-1; i++)
+    {
+        psi[i]+=psi[i-1];
+    }
+    
+    //read psi_c,psi_o,tangent for r_out
+    {
+        psi_c=analogRead(A9);
+        psi_o=psi[3]; //3 is outboard center
+        tangent=analogRead(A10);
+    }
+    
     //rout
     delta_r = (psi_c-psi_o)/tangent;
     r_out = (r_c+r_o+delta_r)/2;
 
-
     //zout
-    for (int i = 0; i < 3; i++)
+    A=0,B=0;
+    for (int i = 0; i < dim_z; i++)
     {
-        for (int j = 0; j < 3; j++)
-        {
-            c1[i][j]=calculate(dim_z,z_o,i+j);
-        }
+        A+=psi[i]*c[2][i];
+        B+=psi[i]*c[1][i];
     }
-    for (int i = 0; i < 3; i++)
-    {
-        c2[i]=calculate(dim_z,psi,z_o,i);
-    }
-    for (int i = 0; i < 3; i++)
-    {
-        for (int j = 0; j < 3; j++)
-        {
-            if(j==2){
-                cA[i][j]=c2[i];
-            }
-            else{
-                cA[i][j]=c1[i][j];
-            }
-            if(j==1){
-                cB[i][j]=c2[i];
-            }
-            else{
-                cA[i][j]=c1[i][j];
-            }
-        }
-    }
-
-    dc=determinant(c1);
-    dA=determinant(cA);
-    dB=determinant(cB);
-
-    A=dA/dc;
-    B=dB/dc;
-
+    
     z_out=-B/(2*A);
 }
 
