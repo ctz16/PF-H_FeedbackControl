@@ -1,5 +1,3 @@
-#define PI 3.1415926
-
 //r variable
 //position of loops
 const double r_c=0.12000, r_o=0.699000;
@@ -33,11 +31,13 @@ void setup(){
 void loop(){
 
     //read psi for z_out
+    //arduino read from 0~5V but signal from 2.5 to -2.5V
     //psi[0] and psi[7] are fluc loop
     //psi[1] to psi[6] are saddle loop
     for (int i = 0; i < dim_z; i++)
     {
         psi[i]=analogRead(A1+i);
+        psi[i]=-psi[i]+2.5; 
     }
     psi[0]=psi[0]*c_o[0];
     psi[dim_z-1]=psi[dim_z-1]*c_o[1];
@@ -51,9 +51,11 @@ void loop(){
     //read psi_c,psi_o,tangent for r_out
     {
         psi_c=analogRead(A9);
+        psi_c=-psi_c+2.5;
         psi_c=psi_c*c_c;
         psi_o=psi[3]; //3 is outboard center loop
         psi_op=analogRead(A10);
+        psi_op=-psi_op+2.5;
         psi_op=psi_op*c_op;
         tangent=psi_op*PI*2*r_o;
     }
@@ -72,4 +74,3 @@ void loop(){
     
     z_out=-B/(2*A);
 }
-
