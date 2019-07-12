@@ -25,9 +25,13 @@ const double c[3][8]={
 {       3.8203913,      0.60522721,      -2.2069399,      -3.6896237,      -2.7423851,     -0.91601104,       2.4718668,       2.6574733}};
 
 //PID coefficient
-#define K_p 0.2
-#define K_i 0.1
-#define K_d 0.1
+#define Kr_p 0.2
+#define Kr_i 0.1
+#define Kr_d 0.1
+
+#define Kz_p 0.2
+#define Kz_i 0.1
+#define Kz_d 0.1
 
 //pin mapping
 #define PF 2 //R
@@ -57,6 +61,7 @@ double cumuError_r = 0;
 double cumuError_z = 0;
 double lastError_r = 0;
 double lastError_z = 0;
+double lastDuty = 0;
 
 void setup(){
 
@@ -71,9 +76,13 @@ void setup(){
     // T = 16 microseconds
     TCCR3A = _BV(COM3A1) | _BV(COM3A0) | _BV(COM3B1) | _BV(COM3B0) | _BV(COM3C0) | _BV(COM3C1) | _BV(WGM30);
     TCCR3B = _BV(WGM32) | _BV(CS30);
-    OCR3AL = 255;
-    OCR3BL = 255;
-    OCR3CL = 255;
+//    OCR3AL = 255;
+//    OCR3BL = 255;
+//    OCR3CL = 255;
+
+    D_PF = PF_default;
+    D_H2 = H2_default;
+    D_H4 = H4_default;
 
     ADCSRA = _BV(ADPS2);
 //    Serial.begin(230400);
@@ -118,8 +127,7 @@ void loop(){
     }
     
     //rout
-    delta_r = (psi_c-psi_o)/tangent;
-    r_out = (r_c+r_o+delta_r)/2;
+    r_out = (r_c+r_o+(psi_c-psi_o)/tangent)/2;
 
     //zout
     A=0,B=0;
@@ -135,7 +143,7 @@ void loop(){
 //    r_out=analogRead(A1);
     error_r = r_out - r_t;
     cumuError_r += error_r;
-    D_PF = PF_default + Kr_p*error + Kr_i*cumuError + Kr_d*(error_r-lastError_r);
+    D_PF += Kr_p*error_r + Kr_i*cumuError_r + Kr_d*(error_r-lastError_r);
     lastError_r = error_r;
     
     //check z_out
@@ -143,17 +151,20 @@ void loop(){
     error_z = z_out - z_t;
     cumuError_z += error_z;
     lastError_z = error_z;
-    if(error>0){
+    if(error_z>0){
         digitalWrite(H3,LOW);
         D_H2 = 255;
         digitalWrite(H1,HIGH);
-        D_H4 = H4_default + Kz_p*error_d + Kz_i*cumuError_z + Kz_d*(error_z-lastError_z);
+        D_H4 = lastDuty + Kz_p*error_z + Kz_i*cumuError_z + Kz_d*(error_z-lastError_z);
+        lastDuty = D_H4;
     }
     else{
         digitalWrite(H1,LOW);
         D_H4 = 255;
         digitalWrite(H3,HIGH);
-        D_H2 = H2_default + Kz_p*error_d + Kz_i*cumuError_z + Kz_d*(error_z-lastError_z);
+        D_H2 = lastDuty + Kz_p*error_z + Kz_i*cumuError_z + Kz_d*(error_z-lastError_z);
+        lastDuty = D_H2;
     }
+    
 //    digitalWrite(11,LOW);
 }
