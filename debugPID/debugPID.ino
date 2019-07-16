@@ -18,20 +18,11 @@ double A,B;
 const double c_o[2]={   0.00934779,   0.00952129};
 const double c_so[6]={   -0.0116987,   -0.0137233,   -0.0116096,  -0.00803445,    0.0120827,    0.0135117};
 
-//coefficients of fitting (X_T*X)^-1*X_T
+//coefficients of fitting (X_T*X)^-1*X_T X=z
 const double c[3][8]={
 {     -0.10157325,      0.10741101,      0.28746355,      0.37565219,      0.30099177,     0.17140523,    -0.064258453,    -0.077091960},
 {      0.85464802,      0.59017087,      0.29084170,    -0.034480695,     -0.28178700,     -0.40168786,     -0.50693151,     -0.51077351},
 {       3.8203913,      0.60522721,      -2.2069399,      -3.6896237,      -2.7423851,     -0.91601104,       2.4718668,       2.6574733}};
-
-//PID coefficient
-#define Kr_p 0.2
-#define Kr_i 0.1
-#define Kr_d 0.1
-
-#define Kz_p 0.2
-#define Kz_i 0.1
-#define Kz_d 0.1
 
 //pin mapping
 #define PF 2 //R
@@ -50,7 +41,7 @@ const double c[3][8]={
 #define H4_default 100
 
 // timePeriod measured
-#define timePeriod 0.73
+#define timePeriod 0.83 //ms
 
 // target
 #define r_t 0;
@@ -63,6 +54,15 @@ double lastError_r = 0;
 double lastError_z = 0;
 double lastDuty = 0;
 
+//PID coefficient
+#define Kr_p 0.2
+#define Kr_i 0.1
+#define Kr_d 0.1
+
+#define Kz_p 0.2
+#define Kz_i 0.1
+#define Kz_d 0.1
+
 void setup(){
 
     pinMode(PF,OUTPUT);
@@ -70,7 +70,7 @@ void setup(){
     pinMode(H2,OUTPUT);
     pinMode(H3,OUTPUT);
     pinMode(H4,OUTPUT);
-//    pinMode(11,OUTPUT);
+    pinMode(11,OUTPUT);
 
     // clock = clk_io = 16MHz(default), fast PWM mode, set at match and clear at bottom
     // T = 16 microseconds
@@ -98,12 +98,12 @@ void loop(){
 //    }
     //read psi for z_out
     //arduino read from 0~5V but signal from 2.5 to -2.5V
-    //psi[0] and psi[7] are fluc loop
+    //psi[0] and psi[7] are flux loop
     //psi[1] to psi[6] are saddle loop
     for (int i = 0; i < dim_z; i++)
     {
         psi[i]=analogRead(A1+i);
-        psi[i]=-psi[i]+2.5; 
+        psi[i]=-(psi[i] * (5.0 / 1023.0))+2.5;
     }
     psi[0]=psi[0]*c_o[0];
     psi[dim_z-1]=psi[dim_z-1]*c_o[1];
@@ -115,16 +115,16 @@ void loop(){
     }
     
     //read psi_c,psi_o,tangent for r_out
-    {
-        psi_c=analogRead(A9);
-        psi_c=-psi_c+2.5;
-        psi_c=psi_c*c_c;
-        psi_o=psi[3]; //3 is outboard center loop
-        psi_op=analogRead(A10);
-        psi_op=-psi_op+2.5;
-        psi_op=psi_op*c_op;
-        tangent=psi_op*PI*2*r_o;
-    }
+    
+    psi_c=analogRead(A9);
+    psi_c=-(psi_c * (5.0 / 1023.0))+2.5;
+    psi_c=psi_c*c_c;
+    psi_o=psi[3]; //3 is outboard center loop
+    psi_op=analogRead(A10);
+    psi_op=-(psi_op * (5.0 / 1023.0))+2.5;
+    psi_op=psi_op*c_op;
+    tangent=psi_op*PI*2*r_o;
+    
     
     //rout
     r_out = (r_c+r_o+(psi_c-psi_o)/tangent)/2;
