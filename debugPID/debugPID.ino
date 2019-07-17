@@ -37,9 +37,9 @@ const double c[3][7]={
 #define D_H4 OCR3C
 
 // default duty circle 0~255
-#define PF_default 100
-#define H2_default 100
-#define H4_default 100
+#define PF_default 255
+#define H2_default 255
+#define H4_default 255
 
 // timePeriod measured
 #define timePeriod 0.73 //ms
@@ -54,14 +54,15 @@ double cumuError_z = 0;
 double lastError_r = 0;
 double lastError_z = 0;
 double lastDuty = 0;
+double duty_z;
 
 //PID coefficient
-#define Kr_p 0.2
-#define Kr_i 0.1
+#define Kr_p 0.01  //50
+#define Kr_i 0.01
 //#define Kr_d 0.1
 
-#define Kz_p 0.2
-#define Kz_i 0.1
+#define Kz_p 0.01  //50
+#define Kz_i 0.01
 //#define Kz_d 0.1
 
 void setup(){
@@ -76,17 +77,18 @@ void setup(){
     // clock = clk_io = 16MHz(default), fast PWM mode, set at match and clear at bottom
     // T = 16 microseconds
     TCCR3A = _BV(COM3A1) | _BV(COM3A0) | _BV(COM3B1) | _BV(COM3B0) | _BV(COM3C0) | _BV(COM3C1) | _BV(WGM30);
-    TCCR3B = _BV(WGM32) | _BV(CS31);
+    TCCR3B = _BV(WGM32) | _BV(CS30);
 
     D_PF = PF_default;
     D_H2 = H2_default;
     D_H4 = H4_default;
 
-    bitSet(ADCSRA,ADPS0);
-    bitSet(ADCSRA,ADPS1);
-    bitClear(ADCSRA,ADPS2);
-    
-//    Serial.begin(9600);
+    //change adc clock, prescaler 8, ADC not working at 4 or 2
+    bitClear(ADCSRA,ADPS0);
+    bitClear(ADCSRA,ADPS1);
+    bitSet(ADCSRA,ADPS2);
+
+//    Serial.begin(230400);
 }
 
 void loop(){
@@ -147,24 +149,32 @@ void loop(){
     
     //check z_out
 //    z_out=analogRead(A1);
+    z_out = z_out*(5.0/1023.0);
     error_z = z_out - z_t;
     cumuError_z += error_z;
-//    Serial.println(z_out);
-//    lastError_z = error_z;
-    if(error_z>0){
+    duty_z = lastDuty+Kz_p*error_z;
+    lastDuty=duty_z;
+    if(duty_z>255){
+        duty_z=255;
+    }
+    if(duty_z<-255){
+        duty_z=-255;
+    }
+    if(duty_z>0){
+        // 255 is no signal at 0V, 0 is delta signal from 5V
         D_H2 = 255;
-        // do not optimize digitalWrite, it's good there is some delay to make sure the order is correct
+        //some delay to make sure the order is correct, because the period of pwm is 16us
         digitalWrite(H3,LOW);
+        delayMicroseconds(16);
         digitalWrite(H1,HIGH);
-        D_H4 = lastDuty + Kz_p*error_z + Kz_i*cumuError_z;
-        lastDuty = D_H4;
+        D_H4 = 255-duty_z;
     }
     else{
         D_H4 = 255;
         digitalWrite(H1,LOW);
+        delayMicroseconds(16);
         digitalWrite(H3,HIGH);
-        D_H2 = lastDuty + Kz_p*error_z + Kz_i*cumuError_z;
-        lastDuty = D_H2;
+        D_H2 = 255+duty_z;
     }
     
 //    digitalWrite(11,LOW);
