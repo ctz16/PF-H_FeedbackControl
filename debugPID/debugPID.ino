@@ -19,10 +19,11 @@ const double c_o[2]={   0.00934779,   0.00952129};
 const double c_so[6]={   -0.0116987,   -0.0137233,   -0.0116096,  -0.00803445,    0.0120827,    0.0135117};
 
 //coefficients of fitting (X_T*X)^-1*X_T X=z
-const double c[3][8]={
-{     -0.10157325,      0.10741101,      0.28746355,      0.37565219,      0.30099177,     0.17140523,    -0.064258453,    -0.077091960},
-{      0.85464802,      0.59017087,      0.29084170,    -0.034480695,     -0.28178700,     -0.40168786,     -0.50693151,     -0.51077351},
-{       3.8203913,      0.60522721,      -2.2069399,      -3.6896237,      -2.7423851,     -0.91601104,       2.4718668,       2.6574733}};
+const double c[3][7]={
+{     -0.11208726,      0.11096086,      0.30037245,      0.38624873,      0.29337451,      0.14411194,     -0.12298114},
+{     0.78498737,      0.61369047,      0.37636976,     0.035726801,     -0.33225523,     -0.58251984,     -0.89599924},
+{     4.1828246,      0.48285854,      -2.6519288,      -4.0549021,      -2.4798069,     0.024828931,       4.4961242}};
+
 
 //pin mapping
 #define PF 2 //R
@@ -92,19 +93,20 @@ void loop(){
 //    digitalWrite(11,HIGH);
     //read psi for z_out
     //arduino read from 0~5V but signal from 2.5 to -2.5V
-    //psi[6] are flux loop
-    //psi[0] to psi[5] are saddle loop
-    for (int i = 0; i < dim_z; i++)
+    //psi[0] are flux loop
+    //psi[1] to psi[6] are saddle loop
+    for (int i = 1; i < dim_z; i++)
     {
         //analogRead optimized from 120us to 5us
         psi[i]=analogRead(A1+i);
         psi[i]=-(psi[i] * (5.0 / 1023.0))+2.5;
     }
-
-    //we only use o0
-    psi[dim_z-1]=psi[dim_z-1]*c_o[0];
     
-    for (int i = 1; i < dim_z-1; i++)
+    psi[0]=analogRead(A7);
+    psi[0]=-(psi[0] * (5.0 / 1023.0))+2.5;
+    psi[0]=psi[0]*c_o[0];
+    
+    for (int i = 1; i < dim_z; i++)
     {
         psi[i]=psi[i]*c_so[i-1];
         psi[i]=psi[i]+psi[i-1];
@@ -144,7 +146,7 @@ void loop(){
 
     
     //check z_out
-    z_out=analogRead(A1);
+//    z_out=analogRead(A1);
     error_z = z_out - z_t;
     cumuError_z += error_z;
 //    Serial.println(z_out);
