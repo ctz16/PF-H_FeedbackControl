@@ -57,13 +57,17 @@ double lastDuty = 0;
 double duty_z;
 
 //PID coefficient
-#define Kr_p 0.01  //50
-#define Kr_i 0.01
-//#define Kr_d 0.1
+double Kr_p = 0.01;  //50
+double Kr_i = 0.01;
+//double Kr_d = 0.1;
 
-#define Kz_p 0.01  //50
-#define Kz_i 0.01
-//#define Kz_d 0.1
+double Kz_p = 0.01;  //50
+double Kz_i = 0.01;
+//double Kz_d = 0.1;
+
+// preprogrammed waveform
+#define pre_num 3
+int pre[pre_num];
 
 void setup(){
 
@@ -74,6 +78,22 @@ void setup(){
     pinMode(H4,OUTPUT);
 //    pinMode(11,OUTPUT);
 
+    Serial3.begin(9600);
+    while(!Serial3.available()){}
+    for (int i = 0; i < pre_num; i++)
+    {
+        pre[i]=Serial3.parseInt();
+    }
+    Serial3.end();
+    for (int i = 0; i < pre_num; i++)
+    {
+        digitalWrite(PF,HIGH);
+        delay(pre[2*i]);
+        digitalWrite(PF,LOW);
+        delay(pre[2*i+1]);
+    }
+    
+
     // clock = clk_io = 16MHz(default), fast PWM mode, set at match and clear at bottom
     // T = 16 microseconds
     TCCR3A = _BV(COM3A1) | _BV(COM3A0) | _BV(COM3B1) | _BV(COM3B0) | _BV(COM3C0) | _BV(COM3C1) | _BV(WGM30);
@@ -83,20 +103,22 @@ void setup(){
     D_H2 = H2_default;
     D_H4 = H4_default;
 
-    //change adc clock, prescaler 8, ADC not working at 4 or 2
+    //change adc clock, prescaler 16, ADC not working at 4 or 2
     bitClear(ADCSRA,ADPS0);
     bitClear(ADCSRA,ADPS1);
     bitSet(ADCSRA,ADPS2);
 
-//    Serial.begin(230400);
+//    Serial.begin(9600);
 }
 
 void loop(){
 //    digitalWrite(11,HIGH);
-    //read psi for z_out
-    //arduino read from 0~5V but signal from 2.5 to -2.5V
-    //psi[0] are flux loop
-    //psi[1] to psi[6] are saddle loop
+    /*
+     * read psi for z_out
+     * arduino read from 0~5V but signal from 2.5 to -2.5V
+     * psi[0] are flux loop
+     * psi[1] to psi[6] are saddle loop
+     */
     for (int i = 1; i < dim_z; i++)
     {
         //analogRead optimized from 120us to 5us
@@ -139,7 +161,7 @@ void loop(){
     
     z_out=-B/(2*A);
     
-    //check r_out
+    /* check r_out */
 //    r_out=analogRead(A1);
     error_r = r_out - r_t;
     cumuError_r += error_r;
@@ -147,9 +169,10 @@ void loop(){
     D_PF += Kr_p*error_r + Kr_i*cumuError_r;
 
     
-    //check z_out
+    /* check z_out */
 //    z_out=analogRead(A1);
-    z_out = z_out*(5.0/1023.0);
+//    z_out = z_out*(5.0/1023.0);
+//    Serial.println(z_out);
     error_z = z_out - z_t;
     cumuError_z += error_z;
     duty_z = lastDuty+Kz_p*error_z;
