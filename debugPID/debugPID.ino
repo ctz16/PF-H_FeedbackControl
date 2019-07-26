@@ -37,14 +37,14 @@ const double c[3][7] = {
 #define D_H2 OCR3A
 #define D_H4 OCR3C
 
-// default duty circle 0~255
+// default is 255 means no pwm
 #define PF_default 255
 #define H2_default 255
 #define H4_default 255
 
 // target
-#define r_t 512;
-#define z_t 512;
+#define r_t 0;
+#define z_t 0;
 
 double error_r;
 double error_z;
@@ -65,8 +65,10 @@ double Kz_i = 0.01;
 //double Kz_d = 0.1;
 
 // preprogrammed waveform
-#define pre_num 8
-int pre[pre_num] = {1, 1, 1, 1, 1, 1, 1, 1};
+//#define pre_num 8
+//int pre[pre_num] = {1, 1, 1, 1, 1, 1, 1, 1};
+int pre_num = 0;
+int* pre;
 
 const int delta_time = 100;
 const int delayfromTrigger = 10000;
@@ -153,12 +155,17 @@ void loop()
       for (int i = 0; i < pre_num / 2; i++)
       {
         digitalWrite(PF, HIGH);
-        delay(pre[2 * i]);
+        delayMicroseconds(100*pre[2 * i]);
         digitalWrite(PF, LOW);
-        delay(pre[2 * i + 1]);
+        delayMicroseconds(100*pre[2 * i + 1]);
 
-        // turn on pwm for R control
+        // turn on pwm
+        bitSet(TCCR3A, COM3A1);
         bitSet(TCCR3A, COM3B1);
+        bitSet(TCCR3A, COM3C1);
+        D_PF = PF_default;
+        D_H2 = H2_default;
+        D_H4 = H4_default;
       }
     }
 
@@ -205,20 +212,15 @@ void loop()
       z_out = -B / (2 * A);
 
       /* check r_out */
-      //    r_out=analogRead(A1);
       error_r = r_out - r_t;
       cumuError_r += error_r;
       //    lastError_r = error_r;
       D_PF += Kr_p * error_r + Kr_i * cumuError_r;
 
       /* check z_out */
-      //    z_out=analogRead(A1);
-      //    z_out = z_out*(5.0/1023.0);
-      //    Serial.println(z_out);
       error_z = z_out - z_t;
       cumuError_z += error_z;
       duty_z = lastDuty + Kz_p * error_z + Kz_i * cumuError_z;
-      lastDuty = duty_z;
       if (duty_z > 255)
       {
         duty_z = 255;
@@ -230,22 +232,28 @@ void loop()
 
       if (duty_z > 0)
       {
-        // 255 is no signal at 0V, 0 is delta signal from 5V
-        D_H2 = 255;
-        //some delay to make sure the order is correct, because the period of pwm is 16us
-        digitalWrite(H3, LOW);
-        delayMicroseconds(16);
+        if (lastDuty < 0){
+          // 255 is no signal at 0V, 0 is delta signal from 5V
+          D_H2 = 255;
+          digitalWrite(H3, LOW);
+          // delay to make sure that there is no short happening
+          delayMicroseconds(128);
+        }
         digitalWrite(H1, HIGH);
         D_H4 = 255 - duty_z;
       }
       else
       {
-        D_H4 = 255;
-        digitalWrite(H1, LOW);
-        delayMicroseconds(16);
+        if (lastDuty > 0){
+          D_H4 = 255;
+          digitalWrite(H1, LOW);
+          delayMicroseconds(128);
+        }
         digitalWrite(H3, HIGH);
         D_H2 = 255 + duty_z;
       }
+
+      lastDuty = duty_z;
     }
 
     /* stop after 100 loop */
@@ -273,34 +281,48 @@ void loop()
         val = Serial3.parseInt();
         if (val > 0){
           Kz_p = val;
+          Serial3.println("Kz_p set!");
+          Serial3.println(Kz_p);
         }
         break;
       case 'i':
         val = Serial3.parseInt();
         if (val > 0){
           Kz_i = val;
+          Serial3.println("Kz_i set!");
+          Serial3.println(Kz_i);
         }
         break;
       case 'x':
         val = Serial3.parseInt();
         if (val > 0){
           Kr_p = val;
+          Serial3.println("Kr_p set!");
+          Serial3.println(Kr_p);
         }
         break;
       case 'y':
         val = Serial3.parseInt();
         if (val > 0){
           Kr_i = val;
+          Serial3.println("Kr_i set!");
+          Serial3.println(Kr_i);
         }
         break;
       case 'w':
+//        val = Serial3.parseInt();
+//        if(val>0){
+//          pre_num = val;
+//          delete[] pre;
+//          pre = new int[pre_num];
+//        }
         for (int i = 0; i < pre_num; i++)
         {
           val = Serial3.parseInt();
           if(val>0){
             pre[i] = val;
           }
-  //        Serial.println(pre[i]);
+          Serial3.println(pre[i]);
         }
         break;
       default:
