@@ -65,8 +65,8 @@ double Kz_i = 0.01;
 //double Kz_d = 0.1;
 
 // preprogrammed waveform
-#define pre_num 6
-int pre[pre_num] = {1, 1, 1, 1, 1, 1};
+#define pre_num 8
+int pre[pre_num] = {1, 1, 1, 1, 1, 1, 1, 1};
 
 const int delta_time = 100;
 const int delayfromTrigger = 10000;
@@ -74,6 +74,8 @@ bool triggerflag = false;
 unsigned long triggerTime;
 unsigned long TimefromTrigger;
 int cnt = 0;
+int val = 0;
+char command;
 
 void triggerISR()
 {
@@ -92,11 +94,12 @@ void setup()
   pinMode(triggerPin, INPUT);
 
   Serial3.begin(9600);
+//  Serial.begin(9600);
 
-  // clock = clk_io = 16MHz(default), fast PWM mode, set at match and clear at bottom
-  // T = 16 microseconds
+  // clock = clk_io = 16MHz(default), fast PWM mode, set at match and clear at bottom, prescarlar 8
+  // T = 128 microseconds
   TCCR3A = _BV(COM3A1) | _BV(COM3A0) | _BV(COM3B1) | _BV(COM3B0) | _BV(COM3C0) | _BV(COM3C1) | _BV(WGM30);
-  TCCR3B = _BV(WGM32) | _BV(CS30);
+  TCCR3B = _BV(WGM32) | _BV(CS31);
 
   D_PF = PF_default;
   D_H2 = H2_default;
@@ -207,8 +210,6 @@ void loop()
       cumuError_r += error_r;
       //    lastError_r = error_r;
       D_PF += Kr_p * error_r + Kr_i * cumuError_r;
-      D_PF = 100;
-      delay(2);
 
       /* check z_out */
       //    z_out=analogRead(A1);
@@ -265,10 +266,54 @@ void loop()
   {
     if (Serial3.available())
     {
-      for (int i = 0; i < pre_num; i++)
+      command = Serial3.read();
+      switch (command)
       {
-        pre[i] = Serial3.parseInt();
+      case 'p':
+        val = Serial3.parseInt();
+        if (val > 0){
+          Kz_p = val;
+        }
+        break;
+      case 'i':
+        val = Serial3.parseInt();
+        if (val > 0){
+          Kz_i = val;
+        }
+        break;
+      case 'x':
+        val = Serial3.parseInt();
+        if (val > 0){
+          Kr_p = val;
+        }
+        break;
+      case 'y':
+        val = Serial3.parseInt();
+        if (val > 0){
+          Kr_i = val;
+        }
+        break;
+      case 'w':
+        for (int i = 0; i < pre_num; i++)
+        {
+          val = Serial3.parseInt();
+          if(val>0){
+            pre[i] = val;
+          }
+  //        Serial.println(pre[i]);
+        }
+        break;
+      default:
+        break;
       }
     }
+//      
+//    delay(1000);
+//    Serial.println("Kz_i:");
+//    Serial.println(Kz_i);
+//    Serial.println("pre: ");
+//    for (int i = 0; i< pre_num; i++){
+//       Serial.println(pre[i]);
+//    }
   }
 }
