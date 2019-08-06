@@ -30,7 +30,6 @@ const double c[3][7] = {
  * 0 RF
  * 1 OH
  */
-//
 //const double offset [1][9] = {{0,0,0,0,0,0,0,0,0}};
 //int mode=0;
 
@@ -92,6 +91,7 @@ double checkZOut[100];
 double checkROut[100];
 int checkDutyZ[100];
 int checkPF[100];
+double checkProbe[9][100];
 
 void triggerISR()
 {
@@ -188,17 +188,19 @@ void loop()
       for (int i = 1; i < dim_z; i++)
       {
         //analogRead optimized from 120us to 5us
-        psi[i] = analogRead(A1 + i);
+        psi[i] = analogRead(A1 + i -1);
         psi[i] = -(psi[i] * (5.0 / 1023.0)) + 2.5;
       }
 
       psi[0] = analogRead(A7);
       psi[0] = -(psi[0] * (5.0 / 1023.0)) + 2.5;
       psi[0] = psi[0] * c_o[0];
+      checkProbe[0][cnt]=psi[0];
 
       for (int i = 1; i < dim_z; i++)
       {
         psi[i] = psi[i] * c_so[i - 1];
+        checkProbe[i][cnt]=psi[i];
         psi[i] = psi[i] + psi[i - 1];
       }
 
@@ -206,10 +208,12 @@ void loop()
       psi_c = analogRead(A9);
       psi_c = -(psi_c * (5.0 / 1023.0)) + 2.5;
       psi_c = psi_c * c_c;
+      checkProbe[7][cnt]=psi_c;
       psi_o = psi[3]; //3 is outboard center loop
       psi_op = analogRead(A8);
       psi_op = -(psi_op * (5.0 / 1023.0)) + 2.5;
       psi_op = psi_op * c_op;
+      checkProbe[8][cnt] = psi_op;
       tangent = psi_op * PI * 2 * r_o;
 
       //rout
@@ -305,7 +309,7 @@ void loop()
       Serial3.println("ROut");
       for (int i = 0; i < 100; i++)
       {
-        Serial3.println(checkROut[i]);
+        Serial3.println(checkROut[i],10);
       }
       Serial3.println("D_PF");
       for (int i = 0; i < 100; i++)
@@ -315,13 +319,23 @@ void loop()
       Serial3.println("ZOut");
       for (int i = 0; i < 100; i++)
       {
-        Serial3.println(checkZOut[i]);
+        Serial3.println(checkZOut[i],10);
       }
       Serial3.println("duty_z");
       for (int i = 0; i < 100; i++)
       {
         Serial3.println(checkDutyZ[i]);
       }
+      Serial3.println("probe");
+      for (int i = 0; i < 9; i++)
+      {
+        Serial3.print("p");
+        Serial3.println(i);
+          for (int j =0;j<100;j++){
+            Serial3.println(checkProbe[i][j],10);
+          }
+      }
+      
       
     }
   }
