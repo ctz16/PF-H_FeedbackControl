@@ -76,7 +76,7 @@ double Kz_i = 0.01;
 
 // preprogrammed waveform
 int pre_num = 0;
-int* pre = new int(1);
+int *pre = new int(1);
 
 const int delta_time = 100;
 int delayfromTrigger = 15000;
@@ -92,6 +92,7 @@ double checkROut[100];
 int checkDutyZ[100];
 int checkPF[100];
 double checkProbe[9][100];
+unsigned long currentTime[100];
 
 void triggerISR()
 {
@@ -169,9 +170,9 @@ void loop()
       for (int i = 0; i < pre_num / 2; i++)
       {
         digitalWrite(PF, HIGH);
-        delayMicroseconds(100*pre[2 * i]);
+        delayMicroseconds(100 * pre[2 * i]);
         digitalWrite(PF, LOW);
-        delayMicroseconds(100*pre[2 * i + 1]);
+        delayMicroseconds(100 * pre[2 * i + 1]);
       }
       // turn on pwm
       bitSet(TCCR3A, COM3A1);
@@ -180,7 +181,6 @@ void loop()
       D_PF = PF_default;
       D_H2 = H2_default;
       D_H4 = H4_default;
-      
     }
 
     else
@@ -188,19 +188,19 @@ void loop()
       for (int i = 1; i < dim_z; i++)
       {
         //analogRead optimized from 120us to 5us
-        psi[i] = analogRead(A1 + i -1);
+        psi[i] = analogRead(A1 + i - 1);
         psi[i] = -(psi[i] * (5.0 / 1023.0)) + 2.5;
       }
 
       psi[0] = analogRead(A7);
       psi[0] = -(psi[0] * (5.0 / 1023.0)) + 2.5;
       psi[0] = psi[0] * c_o[0];
-      checkProbe[0][cnt]=psi[0];
+      checkProbe[0][cnt] = psi[0];
 
       for (int i = 1; i < dim_z; i++)
       {
         psi[i] = psi[i] * c_so[i - 1];
-        checkProbe[i][cnt]=psi[i];
+        checkProbe[i][cnt] = psi[i];
         psi[i] = psi[i] + psi[i - 1];
       }
 
@@ -208,7 +208,7 @@ void loop()
       psi_c = analogRead(A9);
       psi_c = -(psi_c * (5.0 / 1023.0)) + 2.5;
       psi_c = psi_c * c_c;
-      checkProbe[7][cnt]=psi_c;
+      checkProbe[7][cnt] = psi_c;
       psi_o = psi[3]; //3 is outboard center loop
       psi_op = analogRead(A8);
       psi_op = -(psi_op * (5.0 / 1023.0)) + 2.5;
@@ -232,23 +232,22 @@ void loop()
       /* check r_out */
       error_r = r_out - r_t;
       cumuError_r += error_r;
-      duty_r = int(lastDuty_r + Kr_p * error_r + Kr_i * cumuError_r);
+      duty_r = int(Kr_p * error_r + Kr_i * cumuError_r);
       if (duty_r > 255)
       {
-        duty_r=255;
+        duty_r = 255;
       }
       if (duty_r < 0)
       {
-        duty_r=0;
+        duty_r = 0;
       }
       D_PF = 255 - duty_r;
       lastDuty_r = duty_r;
 
-
       /* check z_out */
       error_z = z_out - z_t;
       cumuError_z += error_z;
-      duty_z = int(lastDuty_z + Kz_p * error_z + Kz_i * cumuError_z);
+      duty_z = int(Kz_p * error_z + Kz_i * cumuError_z);
       if (duty_z > 255)
       {
         duty_z = 255;
@@ -260,7 +259,8 @@ void loop()
 
       if (duty_z > 0)
       {
-        if (lastDuty_z < 0){
+        if (lastDuty_z < 0)
+        {
           // 255 is no signal at 0V, 0 is delta signal from 5V
           D_H2 = 255;
           digitalWrite(H3, LOW);
@@ -272,7 +272,8 @@ void loop()
       }
       else
       {
-        if (lastDuty_z > 0){
+        if (lastDuty_z > 0)
+        {
           D_H4 = 255;
           digitalWrite(H1, LOW);
           delayMicroseconds(128);
@@ -289,7 +290,10 @@ void loop()
     checkPF[cnt] = D_PF;
     checkZOut[cnt] = z_out;
     checkDutyZ[cnt] = duty_z;
+    currentTime[cnt] = micros() - triggerTime;
+
     cnt++;
+
     if (cnt > 99)
     {
       cnt = 0;
@@ -309,7 +313,7 @@ void loop()
       Serial3.println("ROut");
       for (int i = 0; i < 100; i++)
       {
-        Serial3.println(checkROut[i],10);
+        Serial3.println(checkROut[i], 10);
       }
       Serial3.println("D_PF");
       for (int i = 0; i < 100; i++)
@@ -319,7 +323,7 @@ void loop()
       Serial3.println("ZOut");
       for (int i = 0; i < 100; i++)
       {
-        Serial3.println(checkZOut[i],10);
+        Serial3.println(checkZOut[i], 10);
       }
       Serial3.println("duty_z");
       for (int i = 0; i < 100; i++)
@@ -331,12 +335,16 @@ void loop()
       {
         Serial3.print("p");
         Serial3.println(i);
-          for (int j =0;j<100;j++){
-            Serial3.println(checkProbe[i][j],10);
-          }
+        for (int j = 0; j < 100; j++)
+        {
+          Serial3.println(checkProbe[i][j], 10);
+        }
       }
-      
-      
+      Serial3.println("time");
+      for (int i = 0; i < 100; i++)
+      {
+        Serial3.println(currentTime[i]);
+      }
     }
   }
 
@@ -349,7 +357,8 @@ void loop()
       {
       case 'r':
         val = Serial3.parseFloat();
-        if (val > 0){
+        if (val > 0)
+        {
           r_t = val;
           Serial3.println("r target set!");
           Serial3.println(r_t);
@@ -357,7 +366,8 @@ void loop()
         break;
       case 'z':
         val = Serial3.parseFloat();
-        if (val > 0){
+        if (val > 0.000001 || val < -0.000001)
+        {
           z_t = val;
           Serial3.println("z target set!");
           Serial3.println(z_t);
@@ -365,7 +375,8 @@ void loop()
         break;
       case 'd':
         val = Serial3.parseInt();
-        if (val > 0){
+        if (val > 0)
+        {
           delayfromTrigger = val;
           Serial3.println("delay set!");
           Serial3.println(delayfromTrigger);
@@ -373,7 +384,8 @@ void loop()
         break;
       case 'p':
         val = Serial3.parseFloat();
-        if (val > 0){
+        if (val > 0)
+        {
           Kz_p = val;
           Serial3.println("Kz_p set!");
           Serial3.println(Kz_p);
@@ -381,7 +393,8 @@ void loop()
         break;
       case 'i':
         val = Serial3.parseFloat();
-        if (val > 0){
+        if (val > 0)
+        {
           Kz_i = val;
           Serial3.println("Kz_i set!");
           Serial3.println(Kz_i);
@@ -389,7 +402,8 @@ void loop()
         break;
       case 'x':
         val = Serial3.parseFloat();
-        if (val > 0){
+        if (val > 0)
+        {
           Kr_p = val;
           Serial3.println("Kr_p set!");
           Serial3.println(Kr_p);
@@ -397,23 +411,26 @@ void loop()
         break;
       case 'y':
         val = Serial3.parseFloat();
-        if (val > 0){
+        if (val > 0)
+        {
           Kr_i = val;
           Serial3.println("Kr_i set!");
           Serial3.println(Kr_i);
         }
         break;
       case 'w':
-         val = Serial3.parseInt();
-         if(val>0){
-           pre_num = val;
-           delete[] pre;
-           pre = new int[pre_num];
-         }
+        val = Serial3.parseInt();
+        if (val > 0)
+        {
+          pre_num = val;
+          delete[] pre;
+          pre = new int[pre_num];
+        }
         for (int i = 0; i < pre_num; i++)
         {
           val = Serial3.parseInt();
-          if(val>0){
+          if (val > 0)
+          {
             pre[i] = int(val);
           }
           Serial3.println(pre[i]);
@@ -423,13 +440,13 @@ void loop()
         break;
       }
     }
-//      
-//    delay(1000);
-//    Serial.println("Kz_i:");
-//    Serial.println(Kz_i);
-//    Serial.println("pre: ");
-//    for (int i = 0; i< pre_num; i++){
-//       Serial.println(pre[i]);
-//    }
+    //
+    //    delay(1000);
+    //    Serial.println("Kz_i:");
+    //    Serial.println(Kz_i);
+    //    Serial.println("pre: ");
+    //    for (int i = 0; i< pre_num; i++){
+    //       Serial.println(pre[i]);
+    //    }
   }
 }
