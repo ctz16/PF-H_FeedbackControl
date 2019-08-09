@@ -35,10 +35,10 @@ const int H4 = 3;       //Z0
 #define D_H2 OCR3A
 #define D_H4 OCR3C
 
-// default is 255 means no pwm
-#define PF_default 255
-#define H2_default 255
-#define H4_default 255
+// default duty circle
+int PF_default = 0;
+const int H2_default = 0;
+const int H4_default = 0;
 
 // target
 double r_t = 0;
@@ -106,8 +106,6 @@ double c_a_o=0;
 double c_b_o=0;
 double tf=0;
 
-int default_pf = 0;
-
 //H brigde mode
 //mode 1 is normal mode, H1H4 is positive
 //mode 2 is emergency mode, H2H3 is positive
@@ -138,9 +136,9 @@ void setup()
   TCCR3A = _BV(COM3A1) | _BV(COM3A0) | _BV(COM3B1) | _BV(COM3B0) | _BV(COM3C0) | _BV(COM3C1) | _BV(WGM30);
   TCCR3B = _BV(WGM32) | _BV(CS31);
 
-  D_PF = PF_default;
-  D_H2 = H2_default;
-  D_H4 = H4_default;
+  D_PF = 255;
+  D_H2 = 255;
+  D_H4 = 255;
 
   //change adc clock, prescaler 16, ADC not working at 4 or 2
   bitClear(ADCSRA, ADPS0);
@@ -199,9 +197,9 @@ void loop()
        bitSet(TCCR3A, COM3A1);
        bitSet(TCCR3A, COM3B1);
        bitSet(TCCR3A, COM3C1);
-       D_PF = PF_default;
-       D_H2 = H2_default;
-       D_H4 = H4_default;
+       D_PF = 255 - PF_default;
+       D_H2 = 255 - H2_default;
+       D_H4 = 255 - H4_default;
     }
 
     else
@@ -314,7 +312,7 @@ void loop()
         /* check r_out */
         error_r = r_out - r_t;
         cumuError_r += error_r;
-        duty_r = int(Kr_p * error_r + Kr_i * cumuError_r + default_pf);
+        duty_r = int(Kr_p * error_r + Kr_i * cumuError_r + PF_default);
         if (duty_r > 255)
         {
           duty_r = 255;
@@ -543,9 +541,9 @@ void loop()
         val = Serial3.parseInt();
         if (val > 0)
         {
-          default_pf = val;
+          PF_default = val;
           Serial3.println("pf default set!");
-          Serial3.println(default_pf);
+          Serial3.println(PF_default);
         }
         break;
       case 'p': //Kz_p
