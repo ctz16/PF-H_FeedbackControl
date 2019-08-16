@@ -76,8 +76,8 @@ int next_z = 0;
 unsigned long thisTime;
 unsigned long lastTime_r;
 unsigned long lastTime_z;
-int state_r = LOW;
-int state_z = LOW;
+int state_r = HIGH;
+int state_z = HIGH;
 
 //trigger
 const int delta_time = 100;
@@ -99,6 +99,7 @@ double checkProbe[10][100];
 //offset coefficient
 double A_offset1,B_offset1;
 double psi_offset1,tangent_offset1;
+double tf_selfoff;
 double tf_offset;
 double c_psi_o=0;
 double c_tan_o=0;
@@ -118,6 +119,16 @@ void triggerISR()
   triggerTime = micros();
 }
 
+ISR(TIM4_COMPA_vect){
+  cnt_r++;
+  OCR4A = 2*pre_r[cnt_r];
+  digitalWrite(PF,state_r);
+  state_r=1-state_r;
+  if (cnt_r >= pre_num_r-1){
+    bitClear(TIMSK4,OCIE4A);
+  }
+}
+
 void setup()
 {
 
@@ -129,7 +140,6 @@ void setup()
   pinMode(triggerPin, INPUT);
 
   Serial3.begin(9600);
-  // Serial.begin(115200);
 
   // clock = clk_io = 16MHz(default), fast PWM mode, set at match and clear at bottom, prescarlar 8
   // T = 128 microseconds
@@ -153,6 +163,10 @@ void setup()
   digitalWrite(H2, LOW);
   digitalWrite(H3, LOW);
   digitalWrite(H4, LOW);
+
+  TCCR4B = _BV(WGM42) | _BV(CS41);
+
+
 }
 
 void loop()
@@ -161,17 +175,84 @@ void loop()
   if (triggerflag)
   {
 
-    //  /* PWM programmed waveform mode, turn on PWM first, not verified yet */
-    //    TimefromTrigger = micros()-triggerTime;
-    //    if(TimefromTrigger<2000){
-    //      delayMicroseconds(delayfromTrigger-TimefromTrigger-delta_time);
-    //      bitSet(TCCR3A,COM3B1);
-    //      for (int i = 0; i < pre_num; i++)
-    //      {
-    //          D_PF = pre[i];
-    //          delayMicroseconds(100);
-    //      }
-    //    }
+    TimefromTrigger = micros() - triggerTime;
+
+    if (TimefromTrigger < 5000)
+    {
+      delayMicroseconds(delayfromTrigger - TimefromTrigger - delta_time);
+      OCR4A = 2*pre_r[0];
+      bitSet(TIMSK4,OCIE4A);
+      //  for (int i = 0; i < pre_num_r / 2; i++)
+      //  {
+      //    digitalWrite(PF, HIGH);
+      //    delayMicroseconds(pre_r[2 * i]);
+      //    digitalWrite(PF, LOW);
+      //    delayMicroseconds(pre_r[2 * i + 1]);
+      //  }
+
+      //  //turn on pwm
+      //  bitSet(TCCR3A, COM3A1);
+      //  bitSet(TCCR3A, COM3B1);
+      //  bitSet(TCCR3A, COM3C1);
+      //  D_PF = 255 - PF_default;
+      //  D_H2 = 255 - H2_default;
+      //  D_H4 = 255 - H4_default;
+    }
+
+    else
+    {
+     if (cnt_r < pre_num_r)
+     {
+      //  thisTime = micros();
+      //  if (thisTime - lastTime_r > pre_r[cnt_r])
+      //  {
+      //    // high is 1, low is 0
+      //    digitalWrite(PF, state_r);
+      //    state_r = 1-state_r;
+      //    lastTime_r = micros();
+      //    cnt_r++;
+      //  }
+
+       thisTime = micros();
+       if(pre_z[cnt_z]>0)
+       {
+         if (thisTime - lastTime_z > pre_z[cnt_z])
+         {
+           digitalWrite(H2,LOW);
+           digitalWrite(H3,LOW);
+           digitalWrite(H1, state_z);
+           digitalWrite(H4, state_z);
+           state_z = 1-state_z;
+           lastTime_z = micros();
+           cnt_z++;
+         }
+       }
+       else
+       {
+         if (thisTime - lastTime_z > -pre_z[cnt_z])
+         {
+           digitalWrite(H1,LOW);
+           digitalWrite(H4,LOW);
+           digitalWrite(H2, (state_z);
+           digitalWrite(H3, (state_z);
+           state_z = 1-state_z;
+           lastTime_z = micros();
+           cnt_z++;
+         }
+       }
+     }
+     else
+     {
+       bitSet(TCCR3A, COM3A1);
+       bitSet(TCCR3A, COM3B1);
+       bitSet(TCCR3A, COM3C1);
+       D_PF = 255 - PF_default;
+       D_H2 = 255 - H2_default;
+       D_H4 = 255 - H4_default;
+     }
+     
+     if (psi_op>0)
+      {
 
     /*
      * read psi for z_out
@@ -180,87 +261,9 @@ void loop()
      * psi[1] to psi[6] are saddle loop
      */
 
-    TimefromTrigger = micros() - triggerTime;
-
-    if (TimefromTrigger < 5000)
-    {
-      delayMicroseconds(delayfromTrigger - TimefromTrigger - delta_time);
-       for (int i = 0; i < pre_num_r / 2; i++)
-       {
-         digitalWrite(PF, HIGH);
-         delayMicroseconds(pre_r[2 * i]);
-         digitalWrite(PF, LOW);
-         delayMicroseconds(pre_r[2 * i + 1]);
-       }
-
-       //turn on pwm
-       bitSet(TCCR3A, COM3A1);
-       bitSet(TCCR3A, COM3B1);
-       bitSet(TCCR3A, COM3C1);
-       D_PF = 255 - PF_default;
-       D_H2 = 255 - H2_default;
-       D_H4 = 255 - H4_default;
-    }
-
-    else
-    {
-//      if (cnt_r < pre_num_r)
-//      {
-//        thisTime = micros();
-//        if (thisTime - lastTime_r > pre_r[cnt_r])
-//        {
-//          digitalWrite(PF, (state_r) ? HIGH : LOW);
-//          state_r = 1-state_r;
-//          lastTime_r = micros();
-//          cnt_r++;
-//        }
-//        if (cnt_r == pre_num_r)
-//        {
-//          bitSet(TCCR3A, COM3B1);
-//        }
-//      }
-//      if (cnt_z < pre_num_z)
-//      {
-//        thisTime = micros();
-//        if(pre_z[cnt_z]>0)
-//        {
-//          if (thisTime - lastTime_z > pre_z[cnt_z])
-//          {
-//            digitalWrite(H2,LOW);
-//            digitalWrite(H3,LOW);
-//            digitalWrite(H1, (state_z) ? HIGH : LOW);
-//            digitalWrite(H4, (state_z) ? HIGH : LOW);
-//            state_z = 1-state_z;
-//            lastTime_z = micros();
-//            cnt_z++;
-//          }
-//        }
-//        else
-//        {
-//          if (thisTime - lastTime_z > -pre_z[cnt_z])
-//          {
-//            digitalWrite(H1,LOW);
-//            digitalWrite(H4,LOW);
-//            digitalWrite(H2, (state_z) ? HIGH : LOW);
-//            digitalWrite(H3, (state_z) ? HIGH : LOW);
-//            state_z = 1-state_z;
-//            lastTime_z = micros();
-//            cnt_z++;
-//          }
-//        }
-//
-//        if (cnt_z == pre_num_z)
-//        {
-//          //turn on pwm
-//          bitSet(TCCR3A, COM3A1);
-//          bitSet(TCCR3A, COM3C1);
-//        }
-//      }
-//      if (psi_op>0)
-      {
         tf = analogRead(A10);
         tf = -(tf * (5.0 / 1023.0)) + 2.5;
-        tf = c_bt*tf;
+        tf = c_bt*tf - tf_selfoff;
         checkProbe[9][cnt] = tf;
 
         //so
@@ -430,6 +433,11 @@ void loop()
 
   else
   {
+    tf = analogRead(A10);
+    tf = -(tf * (5.0 / 1023.0)) + 2.5;
+    tf = c_bt*tf;
+    tf_selfoff = tf;
+
     for (int i = 1; i < dim_z; i++)
         {
           //analogRead optimized from 120us to 5us
@@ -618,30 +626,6 @@ void loop()
           Serial3.println(pre_z[i]);
         }
         break;
-//      case 'h': //h bridge mode
-//        val = Serial3.parseInt();
-//        if (val > 0)
-//        {
-//          mode = val;
-//          Serial3.println(mode);
-//          if (mode == 1)
-//          {
-//            H1 = 4; //Z1
-//            H2 = 5; //Z2
-//            H3 = 6; //Z3
-//            H4 = 3; //Z0
-//            Serial3.println("normal mode");
-//          }
-//          if (mode == 2)
-//          {
-//            H1 = 6; //Z3
-//            H2 = 3; //Z0
-//            H3 = 4; //Z1
-//            H4 = 5; //Z2
-//            Serial3.println("emergency mode");
-//          }
-//        }
-//        break;
       default:
         break;
       }
