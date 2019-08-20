@@ -19,17 +19,17 @@ const double c[3][7] = {
     {0.78498737, 0.61369047, 0.37636976, 0.035726801, -0.33225523, -0.58251984, -0.89599924},
     {4.1828246, 0.48285854, -2.6519288, -4.0549021, -2.4798069, 0.024828931, 4.4961242}};
 
-const double tfoff_so[6] = {0.000378215, -0.000524829,  -0.00155499, -0.000648422,  0.000982490,   0.00128668};
-const double tfoff_c[2] = { -0.000129345, -0.000101060};
+const double tfoff_so[6] = {0.000378215, -0.000524829, -0.00155499, -0.000648422, 0.000982490, 0.00128668};
+const double tfoff_c[2] = {-0.000129345, -0.000101060};
 const double tfoff_op = 0.00415151;
 
 //pin mapping
 const int triggerPin = 20;
 const int PF = 2; //R
-const int H1 = 4;       //Z1
-const int H2 = 5;       //Z2
-const int H3 = 6;       //Z3
-const int H4 = 3;       //Z0
+const int H1 = 4; //Z1
+const int H2 = 5; //Z2
+const int H3 = 6; //Z3
+const int H4 = 3; //Z0
 
 #define D_PF OCR3B
 #define D_H2 OCR3A
@@ -37,8 +37,8 @@ const int H4 = 3;       //Z0
 
 // default duty circle
 int PF_default = 0;
-const int H2_default = 0;
-const int H4_default = 0;
+const int H2_default = 200;
+const int H4_default = 125;
 
 // target
 double r_t = 0;
@@ -70,20 +70,16 @@ int *pre_r = new int(1);
 int pre_num_z = 0;
 int *pre_z = new int(1);
 int cnt_z = 0;
-int cnt_r = 0;
-int next_r = 0;
-int next_z = 0;
-unsigned long thisTime;
-unsigned long lastTime_r;
-unsigned long lastTime_z;
-int state_r = HIGH;
-int state_z = HIGH;
+volatile int cnt_r = 0;
+unsigned long thisTime = 0;
+unsigned long lastTime_z = 0;
+volatile byte state_r = HIGH;
+byte state_z = HIGH;
 
 //trigger
 const int delta_time = 100;
 int delayfromTrigger = 10000;
-bool triggerflag = false;
-unsigned long triggerTime;
+volatile unsigned long triggerTime;
 unsigned long TimefromTrigger;
 int cnt = 0;
 double val = 0;
@@ -97,41 +93,40 @@ int checkPF[100];
 double checkProbe[10][100];
 
 //offset coefficient
-double A_offset1,B_offset1;
-double psi_offset1,tangent_offset1;
+double A_offset1, B_offset1;
+double psi_offset1, tangent_offset1;
 double tf_selfoff;
 double tf_offset;
-double c_psi_o=0;
-double c_tan_o=0;
-double c_a_o=0;
-double c_b_o=0;
-double tf=0;
+double tf = 0;
 
-//H brigde mode
-//mode 1 is normal mode, H1H4 is positive
-//mode 2 is emergency mode, H2H3 is positive
-//in mode 2, H1 change with H2, H3 change with H4
-int mode = 1;
+volatile bool triggerflag = false;
+volatile bool initFlag = true;
+volatile bool pwmFlag = true;
 
 void triggerISR()
 {
-  triggerflag = true;
   triggerTime = micros();
+  triggerflag = true;
+  initFlag = true;
+  pwmFlag = true;
 }
 
-ISR(TIM4_COMPA_vect){
+ISR(TIMER4_COMPA_vect)
+{
   cnt_r++;
-  OCR4A = 2*pre_r[cnt_r];
-  digitalWrite(PF,state_r);
-  state_r=1-state_r;
-  if (cnt_r >= pre_num_r-1){
-    bitClear(TIMSK4,OCIE4A);
+  OCR4A = 2 * pre_r[cnt_r];
+  digitalWrite(PF, state_r);
+  state_r = 1 - state_r;
+  if (cnt_r >= pre_num_r - 1)
+  {
+    cnt_r++;
+    bitClear(TIMSK4, OCIE4A);
   }
 }
 
 void setup()
 {
-
+  noInterrupts();
   pinMode(PF, OUTPUT);
   pinMode(H1, OUTPUT);
   pinMode(H2, OUTPUT);
@@ -164,9 +159,11 @@ void setup()
   digitalWrite(H3, LOW);
   digitalWrite(H4, LOW);
 
+  bitClear(TIMSK4, OCIE4A);
+  TCCR4A = 0;
   TCCR4B = _BV(WGM42) | _BV(CS41);
 
-
+  interrupts();
 }
 
 void loop()
@@ -174,260 +171,212 @@ void loop()
 
   if (triggerflag)
   {
-
-    TimefromTrigger = micros() - triggerTime;
-
-    if (TimefromTrigger < 5000)
+    if (initFlag)
     {
+      TimefromTrigger = micros() - triggerTime;
       delayMicroseconds(delayfromTrigger - TimefromTrigger - delta_time);
-      OCR4A = 2*pre_r[0];
-      bitSet(TIMSK4,OCIE4A);
-      //  for (int i = 0; i < pre_num_r / 2; i++)
-      //  {
-      //    digitalWrite(PF, HIGH);
-      //    delayMicroseconds(pre_r[2 * i]);
-      //    digitalWrite(PF, LOW);
-      //    delayMicroseconds(pre_r[2 * i + 1]);
-      //  }
-
-      //  //turn on pwm
-      //  bitSet(TCCR3A, COM3A1);
-      //  bitSet(TCCR3A, COM3B1);
-      //  bitSet(TCCR3A, COM3C1);
-      //  D_PF = 255 - PF_default;
-      //  D_H2 = 255 - H2_default;
-      //  D_H4 = 255 - H4_default;
+      digitalWrite(PF, state_r);
+      state_r = 1 - state_r;
+      OCR4A = 2 * pre_r[0];
+      TCNT4 = 0;
+      bitSet(TIFR4, OCF4A);
+      bitSet(TIMSK4, OCIE4A);
+      initFlag = false;
+    }
+    else if (cnt_r < pre_num_r)
+    {
+      if(cnt_z<pre_num_z){
+        thisTime = micros();
+        if (pre_z[cnt_z] > 0)
+        {
+          if (thisTime - lastTime_z > pre_z[cnt_z])
+          {
+            digitalWrite(H2, LOW);
+            digitalWrite(H3, LOW);
+            digitalWrite(H1, state_z);
+            digitalWrite(H4, state_z);
+            state_z = 1 - state_z;
+            lastTime_z = micros();
+            cnt_z++;
+          }
+        }
+        else
+        {
+          if (thisTime - lastTime_z > -pre_z[cnt_z])
+          {
+            digitalWrite(H1, LOW);
+            digitalWrite(H4, LOW);
+            digitalWrite(H2, state_z);
+            digitalWrite(H3, state_z);
+            state_z = 1 - state_z;
+            lastTime_z = micros();
+            cnt_z++;
+          }
+        }
+      }
+      Serial3.println(cnt_r);
+    }
+    else if (pwmFlag)
+    {
+      bitSet(TCCR3A, COM3A1);
+      bitSet(TCCR3A, COM3B1);
+      bitSet(TCCR3A, COM3C1);
+      D_PF = 255 - PF_default;
+      D_H2 = 255 - H2_default;
+      D_H4 = 255 - H4_default;
+      pwmFlag = false;
     }
 
     else
     {
-     if (cnt_r < pre_num_r)
-     {
-      //  thisTime = micros();
-      //  if (thisTime - lastTime_r > pre_r[cnt_r])
-      //  {
-      //    // high is 1, low is 0
-      //    digitalWrite(PF, state_r);
-      //    state_r = 1-state_r;
-      //    lastTime_r = micros();
-      //    cnt_r++;
-      //  }
 
-       thisTime = micros();
-       if(pre_z[cnt_z]>0)
-       {
-         if (thisTime - lastTime_z > pre_z[cnt_z])
-         {
-           digitalWrite(H2,LOW);
-           digitalWrite(H3,LOW);
-           digitalWrite(H1, state_z);
-           digitalWrite(H4, state_z);
-           state_z = 1-state_z;
-           lastTime_z = micros();
-           cnt_z++;
-         }
-       }
-       else
-       {
-         if (thisTime - lastTime_z > -pre_z[cnt_z])
-         {
-           digitalWrite(H1,LOW);
-           digitalWrite(H4,LOW);
-           digitalWrite(H2, (state_z);
-           digitalWrite(H3, (state_z);
-           state_z = 1-state_z;
-           lastTime_z = micros();
-           cnt_z++;
-         }
-       }
-     }
-     else
-     {
-       bitSet(TCCR3A, COM3A1);
-       bitSet(TCCR3A, COM3B1);
-       bitSet(TCCR3A, COM3C1);
-       D_PF = 255 - PF_default;
-       D_H2 = 255 - H2_default;
-       D_H4 = 255 - H4_default;
-     }
-     
-     if (psi_op>0)
-      {
-
-    /*
+     /*
      * read psi for z_out
      * arduino read from 0~5V but signal from 2.5 to -2.5V
      * psi[0] are flux loop
      * psi[1] to psi[6] are saddle loop
      */
 
-        tf = analogRead(A10);
-        tf = -(tf * (5.0 / 1023.0)) + 2.5;
-        tf = c_bt*tf - tf_selfoff;
-        checkProbe[9][cnt] = tf;
+      tf = analogRead(A10);
+      tf = -(tf * (5.0 / 1023.0)) + 2.5;
+      tf = c_bt * tf - tf_selfoff;
+      checkProbe[9][cnt] = tf;
 
-        //so
-        for (int i = 1; i < dim_z; i++)
-        {
-          //analogRead optimized from 120us to 5us
-          psi[i] = analogRead(A1 + i - 1);
-          psi[i] = -(psi[i] * (5.0 / 1023.0)) + 2.5;
-        }
-
-        //O0
-        psi[0] = analogRead(A7);
-        psi[0] = -(psi[0] * (5.0 / 1023.0)) + 2.5;
-        psi[0] = psi[0] * c_o[0] - tf*tfoff_c[0];
-        checkProbe[0][cnt] = psi[0];
-
-        for (int i = 1; i < dim_z; i++)
-        {
-          psi[i] = psi[i] * c_so[i - 1]-tf*tfoff_so[i-1];
-          checkProbe[i][cnt] = psi[i];
-          psi[i] = psi[i] + psi[i - 1];
-        }
-
-        //read C0 and Bp
-        psi_c = analogRead(A9);
-        psi_c = -(psi_c * (5.0 / 1023.0)) + 2.5;
-        psi_c = psi_c * c_c - tf*tfoff_c[0];
-        checkProbe[7][cnt] = psi_c;
-        psi_o = psi[3]; //3 is outboard center loop
-        psi_op = analogRead(A8);
-        psi_op = -(psi_op * (5.0 / 1023.0)) + 2.5;
-        psi_op = psi_op * c_op - tf*tfoff_op;
-        checkProbe[8][cnt] = psi_op;
-        tangent = psi_op * PI * 2 * r_o;
-
-        //rout
-        r_out = (r_c + r_o + (psi_c - psi_o - psi_offset1) / (tangent-tangent_offset1)) / 2;
-
-        //zout
-        A = 0, B = 0;
-        for (int i = 0; i < dim_z; i++)
-        {
-          A += psi[i] * c[2][i];
-          B += psi[i] * c[1][i];
-        }
-
-        z_out = -(B - B_offset1) / (2 * (A-A_offset1));
-
-        /* check r_out */
-        error_r = r_out - r_t;
-        cumuError_r += error_r;
-        duty_r = int(Kr_p * error_r + Kr_i * cumuError_r + PF_default);
-        if (duty_r > 255)
-        {
-          duty_r = 255;
-        }
-        if (duty_r < 0)
-        {
-          duty_r = 0;
-        }
-        D_PF = 255 - duty_r;
-        lastDuty_r = duty_r;
-
-        /* check z_out */
-        error_z = z_out - z_t;
-        cumuError_z += error_z;
-        duty_z = int(Kz_p * error_z + Kz_i * cumuError_z);
-        if (duty_z > 255)
-        {
-          duty_z = 255;
-        }
-        if (duty_z < -255)
-        {
-          duty_z = -255;
-        }
-
-        if (duty_z > 0)
-        {
-          if (lastDuty_z < 0)
-          {
-            // 255 is no signal at 0V, 0 is delta signal from 5V
-            D_H2 = 255;
-            digitalWrite(H3, LOW);
-            // delay to make sure that there is no short happening
-            delayMicroseconds(128);
-          }
-          digitalWrite(H1, HIGH);
-          D_H4 = 255 - duty_z;
-        }
-        else
-        {
-          if (lastDuty_z > 0)
-          {
-            D_H4 = 255;
-            digitalWrite(H1, LOW);
-            delayMicroseconds(128);
-          }
-          digitalWrite(H3, HIGH);
-          D_H2 = 255 + duty_z;
-        }
-
-        lastDuty_z = duty_z;
-      }
-
-      /* stop after 100 loop */
-      checkROut[cnt] = r_out;
-      checkPF[cnt] = D_PF;
-      checkZOut[cnt] = z_out;
-      checkDutyZ[cnt] = duty_z;
-
-      cnt++;
-
-      if (cnt > 99)
+      //so
+      for (int i = 1; i < dim_z; i++)
       {
-        cnt = 0;
-        cnt_r = 0;
-        cnt_z = 0;
-        duty_z = 0;
-        duty_r = 0;
-        lastDuty_z = 0;
-        lastDuty_r = 0;
-        cumuError_z = 0;
-        cumuError_r = 0;
-        triggerflag = false;
-        D_PF = 255;
-        D_H2 = 255;
-        D_H4 = 255;
-        digitalWrite(PF, LOW);
-        digitalWrite(H1, LOW);
-        digitalWrite(H2, LOW);
-        digitalWrite(H3, LOW);
-        digitalWrite(H4, LOW);
-
-        Serial3.println("ROut");
-        for (int i = 0; i < 100; i++)
-        {
-          Serial3.println(checkROut[i], 10);
-        }
-        Serial3.println("D_PF");
-        for (int i = 0; i < 100; i++)
-        {
-          Serial3.println(checkPF[i]);
-        }
-        Serial3.println("ZOut");
-        for (int i = 0; i < 100; i++)
-        {
-          Serial3.println(checkZOut[i], 10);
-        }
-        Serial3.println("duty_z");
-        for (int i = 0; i < 100; i++)
-        {
-          Serial3.println(checkDutyZ[i]);
-        }
-        Serial3.println("probe");
-        for (int i = 0; i < 10; i++)
-        {
-          Serial3.print("p");
-          Serial3.println(i);
-          for (int j = 0; j < 100; j++)
-          {
-            Serial3.println(checkProbe[i][j], 10);
-          }
-        }
+        //analogRead optimized from 120us to 5us
+        psi[i] = analogRead(A1 + i - 1);
+        psi[i] = -(psi[i] * (5.0 / 1023.0)) + 2.5;
       }
+
+      //O0
+      psi[0] = analogRead(A7);
+      psi[0] = -(psi[0] * (5.0 / 1023.0)) + 2.5;
+      psi[0] = psi[0] * c_o[0] - tf * tfoff_c[0];
+      checkProbe[0][cnt] = psi[0];
+
+      for (int i = 1; i < dim_z; i++)
+      {
+        psi[i] = psi[i] * c_so[i - 1] - tf * tfoff_so[i - 1];
+        checkProbe[i][cnt] = psi[i];
+        psi[i] = psi[i] + psi[i - 1];
+      }
+
+      //read C0 and Bp
+      psi_c = analogRead(A9);
+      psi_c = -(psi_c * (5.0 / 1023.0)) + 2.5;
+      psi_c = psi_c * c_c - tf * tfoff_c[0];
+      checkProbe[7][cnt] = psi_c;
+      psi_o = psi[3]; //3 is outboard center loop
+      psi_op = analogRead(A8);
+      psi_op = -(psi_op * (5.0 / 1023.0)) + 2.5;
+      psi_op = psi_op * c_op - tf * tfoff_op;
+      checkProbe[8][cnt] = psi_op;
+      tangent = psi_op * PI * 2 * r_o;
+
+      //rout
+      r_out = (r_c + r_o + (psi_c - psi_o - psi_offset1) / (tangent - tangent_offset1)) / 2;
+
+      //zout
+      A = 0, B = 0;
+      for (int i = 0; i < dim_z; i++)
+      {
+        A += psi[i] * c[2][i];
+        B += psi[i] * c[1][i];
+      }
+
+      z_out = -(B - B_offset1) / (2 * (A - A_offset1));
+
+      /* check r_out */
+      error_r = r_out - r_t;
+      cumuError_r += error_r;
+      duty_r = int(Kr_p * error_r + Kr_i * cumuError_r + PF_default);
+      if (duty_r > 255)
+      {
+        duty_r = 255;
+      }
+      if (duty_r < 0)
+      {
+        duty_r = 0;
+      }
+      D_PF = 255 - duty_r;
+      lastDuty_r = duty_r;
+
+      /* check z_out */
+      error_z = z_out - z_t;
+      cumuError_z += error_z;
+      duty_z = int(Kz_p * error_z + Kz_i * cumuError_z);
+      if (duty_z > 255)
+      {
+        duty_z = 255;
+      }
+      if (duty_z < -255)
+      {
+        duty_z = -255;
+      }
+
+      if (duty_z > 0)
+      {
+        if (lastDuty_z < 0)
+        {
+          // 255 is no signal at 0V, 0 is delta signal from 5V
+          D_H2 = 255;
+          digitalWrite(H3, LOW);
+          // delay to make sure that there is no short happening
+          delayMicroseconds(128);
+        }
+        digitalWrite(H1, HIGH);
+        D_H4 = 255 - duty_z;
+      }
+      else
+      {
+        if (lastDuty_z > 0)
+        {
+          D_H4 = 255;
+          digitalWrite(H1, LOW);
+          delayMicroseconds(128);
+        }
+        digitalWrite(H3, HIGH);
+        D_H2 = 255 + duty_z;
+      }
+
+      lastDuty_z = duty_z;
+    }
+
+    /* stop after 100 loop */
+    checkROut[cnt] = r_out;
+    checkPF[cnt] = D_PF;
+    checkZOut[cnt] = z_out;
+    checkDutyZ[cnt] = duty_z;
+
+    cnt++;
+
+    if (cnt > 99)
+    {
+      Serial3.println(cnt_r);
+      cnt = 0;
+      cnt_r = 0;
+      cnt_z = 0;
+      duty_z = 0;
+      duty_r = 0;
+      lastDuty_z = 0;
+      lastDuty_r = 0;
+      cumuError_z = 0;
+      cumuError_r = 0;
+      state_r = HIGH;
+      state_z = HIGH;
+      triggerflag = false;
+      thisTime = 0;
+      lastTime_z = 0;
+      D_PF = 255;
+      D_H2 = 255;
+      D_H4 = 255;
+      digitalWrite(PF, LOW);
+      digitalWrite(H1, LOW);
+      digitalWrite(H2, LOW);
+      digitalWrite(H3, LOW);
+      digitalWrite(H4, LOW);
     }
   }
 
@@ -435,47 +384,44 @@ void loop()
   {
     tf = analogRead(A10);
     tf = -(tf * (5.0 / 1023.0)) + 2.5;
-    tf = c_bt*tf;
+    tf = c_bt * tf;
     tf_selfoff = tf;
 
     for (int i = 1; i < dim_z; i++)
-        {
-          //analogRead optimized from 120us to 5us
-          psi[i] = analogRead(A1 + i - 1);
-          psi[i] = -(psi[i] * (5.0 / 1023.0)) + 2.5;
-        }
+    {
+      //analogRead optimized from 120us to 5us
+      psi[i] = analogRead(A1 + i - 1);
+      psi[i] = -(psi[i] * (5.0 / 1023.0)) + 2.5;
+    }
 
-        psi[0] = analogRead(A7);
-        psi[0] = -(psi[0] * (5.0 / 1023.0)) + 2.5;
-        psi[0] = psi[0] * c_o[0];
+    psi[0] = analogRead(A7);
+    psi[0] = -(psi[0] * (5.0 / 1023.0)) + 2.5;
+    psi[0] = psi[0] * c_o[0];
 
-        for (int i = 1; i < dim_z; i++)
-        {
-          psi[i] = psi[i] * c_so[i - 1];
-          psi[i] = psi[i] + psi[i - 1];
-        }
+    for (int i = 1; i < dim_z; i++)
+    {
+      psi[i] = psi[i] * c_so[i - 1];
+      psi[i] = psi[i] + psi[i - 1];
+    }
 
-        psi_c = analogRead(A9);
-        psi_c = -(psi_c * (5.0 / 1023.0)) + 2.5;
-        psi_c = psi_c * c_c;
-        psi_o = psi[3]; 
-        psi_op = analogRead(A8);
-        psi_op = -(psi_op * (5.0 / 1023.0)) + 2.5;
-        psi_op = psi_op * c_op;
-        tangent_offset1 = psi_op * PI * 2 * r_o;
-        psi_offset1 = psi_c-psi_o;
+    psi_c = analogRead(A9);
+    psi_c = -(psi_c * (5.0 / 1023.0)) + 2.5;
+    psi_c = psi_c * c_c;
+    psi_o = psi[3];
+    psi_op = analogRead(A8);
+    psi_op = -(psi_op * (5.0 / 1023.0)) + 2.5;
+    psi_op = psi_op * c_op;
+    tangent_offset1 = psi_op * PI * 2 * r_o;
+    psi_offset1 = psi_c - psi_o;
 
-        A = 0, B = 0;
-        for (int i = 0; i < dim_z; i++)
-        {
-          A += psi[i] * c[2][i];
-          B += psi[i] * c[1][i];
-        }
-        A_offset1=A;
-        B_offset1=B;
-
-
-        
+    A = 0, B = 0;
+    for (int i = 0; i < dim_z; i++)
+    {
+      A += psi[i] * c[2][i];
+      B += psi[i] * c[1][i];
+    }
+    A_offset1 = A;
+    B_offset1 = B;
 
     if (Serial3.available())
     {
@@ -508,43 +454,6 @@ void loop()
           Serial3.println("delay set!");
           Serial3.println(delayfromTrigger);
         }
-        break;
-      // case 'a': //z offset coefficient
-      //   val = Serial3.parseFloat();
-      //   if (val > 0.000001 || val < -0.000001)
-      //   {
-      //     c_a_o = val;
-      //     Serial3.println("A offset coefficient set!");
-      //     Serial3.println(c_a_o,5);
-      //   }
-      //   break;
-      // case 'b': //psi offset coefficient
-      //   val = Serial3.parseFloat();
-      //   if (val > 0.000001 || val < -0.000001)
-      //   {
-      //     c_b_o = val;
-      //     Serial3.println("B offset coefficient set!");
-      //     Serial3.println(c_b_o,5);
-      //   }
-      //   break;
-      // case 'c': //tangent offset coefficient
-      //   val = Serial3.parseFloat();
-      //   if (val > 0.000001 || val < -0.000001)
-      //   {
-      //     c_psi_o = val;
-      //     Serial3.println("psi offset coefficient set!");
-      //     Serial3.println(c_psi_o,5);
-      //   }
-      //   break;
-      // case 'd': //tangent offset coefficient
-      //   val = Serial3.parseFloat();
-      //   if (val > 0.000001 || val < -0.000001)
-      //   {
-      //     c_tan_o = val;
-      //     Serial3.println("tangent offset coefficient set!");
-      //     Serial3.println(c_tan_o,5);
-      //   }
-      //   break;
       case 'f': //default_pf
         val = Serial3.parseInt();
         if (val > 0)
