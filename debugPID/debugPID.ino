@@ -37,8 +37,8 @@ const int H4 = 3; //Z0
 
 // default duty circle
 int PF_default = 0;
-const int H2_default = 200;
-const int H4_default = 125;
+const int H2_default = 0;
+const int H4_default = 0;
 
 // target
 double r_t = 0;
@@ -65,19 +65,19 @@ double Kz_i = 0.01;
 //double Kz_d = 0.1;
 
 // preprogrammed waveform
-int pre_num_r = 0;
+volatile byte pre_num_r = 0;
 int *pre_r = new int(1);
 int pre_num_z = 0;
 int *pre_z = new int(1);
-int cnt_z = 0;
-volatile int cnt_r = 0;
+byte cnt_z = 0;
+volatile byte cnt_r = 0;
 unsigned long thisTime = 0;
 unsigned long lastTime_z = 0;
 volatile byte state_r = HIGH;
 byte state_z = HIGH;
 
 //trigger
-const int delta_time = 100;
+const int delta_time = 20;
 int delayfromTrigger = 10000;
 volatile unsigned long triggerTime;
 unsigned long TimefromTrigger;
@@ -111,22 +111,25 @@ void triggerISR()
   pwmFlag = true;
 }
 
-ISR(TIMER4_COMPA_vect)
+ISR(TIMER5_COMPA_vect)
 {
   cnt_r++;
-  OCR4A = 2 * pre_r[cnt_r];
-  digitalWrite(PF, state_r);
-  state_r = 1 - state_r;
-  if (cnt_r >= pre_num_r - 1)
+  if (cnt_r >= pre_num_r)
   {
-    cnt_r++;
-    bitClear(TIMSK4, OCIE4A);
+    bitClear(TIMSK5, OCIE5A);
+    digitalWrite(PF,LOW);
+  }
+  else{
+    OCR5A = 2 * pre_r[cnt_r];
+    digitalWrite(PF, state_r);
+    state_r = 1 - state_r; 
   }
 }
 
 void setup()
 {
   noInterrupts();
+  
   pinMode(PF, OUTPUT);
   pinMode(H1, OUTPUT);
   pinMode(H2, OUTPUT);
@@ -136,6 +139,7 @@ void setup()
 
   Serial3.begin(9600);
 
+  //timer3 generate pwm for feedback control
   // clock = clk_io = 16MHz(default), fast PWM mode, set at match and clear at bottom, prescarlar 8
   // T = 128 microseconds
   TCCR3A = _BV(COM3A1) | _BV(COM3A0) | _BV(COM3B1) | _BV(COM3B0) | _BV(COM3C0) | _BV(COM3C1) | _BV(WGM30);
@@ -145,7 +149,12 @@ void setup()
   D_H2 = 255;
   D_H4 = 255;
 
-  //change adc clock, prescaler 16, ADC not working at 4 or 2
+  //timer5 interrupt to control PF preprogrammed waveform
+  bitClear(TIMSK5, OCIE5A);
+  TCCR5A = 0;
+  TCCR5B = _BV(WGM52) | _BV(CS51);
+
+  //change adc clock to get faster sampling, prescaler 16, ADC not working at 4 or 2
   bitClear(ADCSRA, ADPS0);
   bitClear(ADCSRA, ADPS1);
   bitSet(ADCSRA, ADPS2);
@@ -159,10 +168,6 @@ void setup()
   digitalWrite(H3, LOW);
   digitalWrite(H4, LOW);
 
-  bitClear(TIMSK4, OCIE4A);
-  TCCR4A = 0;
-  TCCR4B = _BV(WGM42) | _BV(CS41);
-
   interrupts();
 }
 
@@ -173,16 +178,32 @@ void loop()
   {
     if (initFlag)
     {
+      //some initiation
       TimefromTrigger = micros() - triggerTime;
       delayMicroseconds(delayfromTrigger - TimefromTrigger - delta_time);
+      
       digitalWrite(PF, state_r);
       state_r = 1 - state_r;
-      OCR4A = 2 * pre_r[0];
-      TCNT4 = 0;
-      bitSet(TIFR4, OCF4A);
-      bitSet(TIMSK4, OCIE4A);
+      OCR5A = 2 * pre_r[0];
+      TCNT5 = 0;
+      bitSet(TIFR5, OCF5A);
+      bitSet(TIMSK5, OCIE5A);
+      
+      if (pre_z[0] > 0){
+        digitalWrite(H1, state_z);
+        digitalWrite(H4, state_z);
+      }
+      else{
+        digitalWrite(H2, state_z);
+        digitalWrite(H3, state_z);
+      }
+      state_z = 1 - state_z;
+      lastTime_z = micros();
+      
       initFlag = false;
     }
+
+    //polling to control H preprogrammed waveform
     else if (cnt_r < pre_num_r)
     {
       if(cnt_z<pre_num_z){
@@ -214,8 +235,9 @@ void loop()
           }
         }
       }
-      Serial3.println(cnt_r);
     }
+
+    //turn on pwm before feedback begin
     else if (pwmFlag)
     {
       bitSet(TCCR3A, COM3A1);
@@ -227,6 +249,7 @@ void loop()
       pwmFlag = false;
     }
 
+    //feedback control
     else
     {
 
@@ -342,41 +365,39 @@ void loop()
       }
 
       lastDuty_z = duty_z;
-    }
-
-    /* stop after 100 loop */
-    checkROut[cnt] = r_out;
-    checkPF[cnt] = D_PF;
-    checkZOut[cnt] = z_out;
-    checkDutyZ[cnt] = duty_z;
-
-    cnt++;
-
-    if (cnt > 99)
-    {
-      Serial3.println(cnt_r);
-      cnt = 0;
-      cnt_r = 0;
-      cnt_z = 0;
-      duty_z = 0;
-      duty_r = 0;
-      lastDuty_z = 0;
-      lastDuty_r = 0;
-      cumuError_z = 0;
-      cumuError_r = 0;
-      state_r = HIGH;
-      state_z = HIGH;
-      triggerflag = false;
-      thisTime = 0;
-      lastTime_z = 0;
-      D_PF = 255;
-      D_H2 = 255;
-      D_H4 = 255;
-      digitalWrite(PF, LOW);
-      digitalWrite(H1, LOW);
-      digitalWrite(H2, LOW);
-      digitalWrite(H3, LOW);
-      digitalWrite(H4, LOW);
+      /* stop after 100 loop */
+      checkROut[cnt] = r_out;
+      checkPF[cnt] = D_PF;
+      checkZOut[cnt] = z_out;
+      checkDutyZ[cnt] = duty_z;
+  
+      cnt++;
+  
+      if (cnt > 99)
+      {
+        cnt = 0;
+        cnt_r = 0;
+        cnt_z = 0;
+        duty_z = 0;
+        duty_r = 0;
+        lastDuty_z = 0;
+        lastDuty_r = 0;
+        cumuError_z = 0;
+        cumuError_r = 0;
+        state_r = HIGH;
+        state_z = HIGH;
+        triggerflag = false;
+        thisTime = 0;
+        lastTime_z = 0;
+        D_PF = 255;
+        D_H2 = 255;
+        D_H4 = 255;
+        digitalWrite(PF, LOW);
+        digitalWrite(H1, LOW);
+        digitalWrite(H2, LOW);
+        digitalWrite(H3, LOW);
+        digitalWrite(H4, LOW);
+      }
     }
   }
 
