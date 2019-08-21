@@ -2,6 +2,7 @@
 //position of loops
 const double r_c = 0.12000, r_o = 0.699000;
 double r_out, psi_c, psi_o, psi_op, tangent;
+double tf = 0;
 double psi[dim_z];
 double z_out;
 double A, B;
@@ -68,8 +69,12 @@ double Kz_i = 0.01;
 volatile byte pre_num_r = 0;
 int *pre_r = new int(1);
 int pre_num_z = 0;
+byte num_z_state = 0;
 int *pre_z = new int(1);
 byte cnt_z = 0;
+int *pre_z_state = new int(1);
+
+
 volatile byte cnt_r = 0;
 unsigned long thisTime = 0;
 unsigned long lastTime_z = 0;
@@ -92,17 +97,38 @@ double checkROut[100];
 int checkDutyZ[100];
 int checkPF[100];
 double checkProbe[10][100];
+double checktime[100];
 
 //offset coefficient
-double A_offset1, B_offset1;
-double psi_offset1, tangent_offset1;
+double A_offset, B_offset;
+double psi_offset, tangent_offset;
 double tf_selfoff;
 double tf_offset;
-double tf = 0;
 
+int avg_num = 5;
+double A_offsets[5];
+double B_offsets[5];
+double psi_offsets[5];
+double tangent_offsets[5];
+double tf_selfoffs[5];
+int cnt_offset = 0;
+
+//flag
 volatile bool triggerflag = false;
 volatile bool initFlag = true;
 volatile bool pwmFlag = true;
+
+bool isTFdivided = true;
+int op_limit = 0.0005;
+
+double avg(int num, double* x){
+  double sum = 0;
+  for (int i = 0; i < num; i++)
+  {
+    sum += x[i];
+  }
+  return sum/num;
+}
 
 void triggerISR()
 {
@@ -184,26 +210,17 @@ void loop()
       TimefromTrigger = micros() - triggerTime;
       delayMicroseconds(delayfromTrigger - TimefromTrigger - delta_time);
 
-      digitalWrite(PF, state_r);
-      state_r = 1 - state_r;
-      OCR5A = 2 * pre_r[0];
-      TCNT5 = 0;
-      bitSet(TIFR5, OCF5A);
-      bitSet(TIMSK5, OCIE5A);
+      if(pre_num_r>0){
+        digitalWrite(PF, state_r);
+        state_r = 1 - state_r;
+        OCR5A = 2 * pre_r[0];
+        TCNT5 = 0;
+        bitSet(TIFR5, OCF5A);
+        bitSet(TIMSK5, OCIE5A);
+      }
 
-      if (pre_z[0] > 0)
-      {
-        digitalWrite(H1, state_z);
-        digitalWrite(H4, state_z);
-      }
-      else
-      {
-        digitalWrite(H2, state_z);
-        digitalWrite(H3, state_z);
-      }
-      state_z = 1 - state_z;
       lastTime_z = micros();
-      preTime_z = pre_z[0];
+      preTime_z = 0;
 
       initFlag = false;
     }
@@ -211,31 +228,71 @@ void loop()
     //polling to control H preprogrammed waveform
     else if (cnt_r < pre_num_r)
     {
-      if (cnt_z < pre_num_z - 1)
+      if (cnt_z < pre_num_z)
       {
-        thisTime = micros();
-        if (thisTime - lastTime_z > preTime_z)
-        {
-          if (pre_z[cnt_z] > 0)
+        thisTime = micros() - lastTime_z;
+        if(thisTime > preTime_z){
+          switch (pre_z_state[cnt_z])
           {
+          case 1:
+            digitalWrite(H1, HIGH);
             digitalWrite(H2, LOW);
             digitalWrite(H3, LOW);
-            digitalWrite(H1, state_z);
-            digitalWrite(H4, state_z);
-            cnt_z++;
-            preTime_z += pre[cnt_z];
-          }
-          else
-          {
+            digitalWrite(H4, HIGH);            
+            break;
+          case 2:
+            digitalWrite(H1, HIGH);
+            digitalWrite(H2, LOW);
+            digitalWrite(H3, LOW);
+            digitalWrite(H4, LOW);            
+            break;
+          case 3:
             digitalWrite(H1, LOW);
-            digitalWrite(H4, LOW);
-            digitalWrite(H2, state_z);
-            digitalWrite(H3, state_z);
-            cnt_z++;
-            preTime_z += -pre_z[cnt_z];
+            digitalWrite(H2, HIGH);
+            digitalWrite(H3, HIGH);
+            digitalWrite(H4, LOW);            
+            break;
+          case 4:
+            digitalWrite(H1, LOW);
+            digitalWrite(H2, LOW);
+            digitalWrite(H3, HIGH);
+            digitalWrite(H4, LOW);            
+            break; 
+          case 5:
+            digitalWrite(H1, LOW);
+            digitalWrite(H2, LOW);
+            digitalWrite(H3, LOW);
+            digitalWrite(H4, LOW);            
+            break;           
+          default:
+            break;
           }
-          state_z = 1 - state_z;
+          preTime_z += pre_z[cnt_z];
+          cnt_z++;
         }
+
+        // if (thisTime - lastTime_z > preTime_z)
+        // {
+        //   if (pre_z[cnt_z] > 0)
+        //   {
+        //     digitalWrite(H2, LOW);
+        //     digitalWrite(H3, LOW);
+        //     digitalWrite(H1, state_z);
+        //     digitalWrite(H4, state_z);
+        //     cnt_z++;
+        //     preTime_z += pre_z[cnt_z];
+        //   }
+        //   else
+        //   {
+        //     digitalWrite(H1, LOW);
+        //     digitalWrite(H4, LOW);
+        //     digitalWrite(H2, state_z);
+        //     digitalWrite(H3, state_z);
+        //     cnt_z++;
+        //     preTime_z += -pre_z[cnt_z];
+        //   }
+        //   state_z = 1 - state_z;
+        // }
       }
     }
 
@@ -254,23 +311,24 @@ void loop()
     //feedback control
     else
     {
-
       /*
      * read psi for z_out
      * arduino read from 0~5V but signal from 2.5 to -2.5V
      * psi[0] are flux loop
      * psi[1] to psi[6] are saddle loop
      */
-
+      
       tf = analogRead(A10);
       tf = -(tf * (5.0 / 1023.0)) + 2.5;
+      if(isTFdivided){
+        tf = tf/2;
+      }
       tf = c_bt * tf - tf_selfoff;
       checkProbe[9][cnt] = tf;
 
       //so
       for (int i = 1; i < dim_z; i++)
       {
-        //analogRead optimized from 120us to 5us
         psi[i] = analogRead(A1 + i - 1);
         psi[i] = -(psi[i] * (5.0 / 1023.0)) + 2.5;
       }
@@ -301,7 +359,7 @@ void loop()
       tangent = psi_op * PI * 2 * r_o;
 
       //rout
-      r_out = (r_c + r_o + (psi_c - psi_o - psi_offset1) / (tangent - tangent_offset1)) / 2;
+      r_out = (r_c + r_o + (psi_c - psi_o - psi_offset) / (tangent - tangent_offset)) / 2;
 
       //zout
       A = 0, B = 0;
@@ -311,7 +369,7 @@ void loop()
         B += psi[i] * c[1][i];
       }
 
-      z_out = -(B - B_offset1) / (2 * (A - A_offset1));
+      z_out = -(B - B_offset) / (2 * (A - A_offset));
 
       /* check r_out */
       error_r = r_out - r_t;
@@ -372,10 +430,11 @@ void loop()
       checkPF[cnt] = D_PF;
       checkZOut[cnt] = z_out;
       checkDutyZ[cnt] = duty_z;
+      checktime[cnt] = micros() - triggerTime;
 
       cnt++;
 
-      if (cnt > 99)
+      if (cnt > 99 || psi_op < op_limit)
       {
         cnt = 0;
         cnt_r = 0;
@@ -430,6 +489,11 @@ void loop()
             Serial3.println(checkProbe[i][j], 10);
           }
         }
+        Serial3.println("time");
+        for (int i = 0; i < 100; i++)
+        {
+          Serial3.println(checktime[i]);
+        }
       }
     }
   }
@@ -438,8 +502,11 @@ void loop()
   {
     tf = analogRead(A10);
     tf = -(tf * (5.0 / 1023.0)) + 2.5;
+    if (isTFdivided){
+      tf = tf/2;
+    }
     tf = c_bt * tf;
-    tf_selfoff = tf;
+    tf_selfoffs[cnt_offset] = tf;
 
     for (int i = 1; i < dim_z; i++)
     {
@@ -465,8 +532,8 @@ void loop()
     psi_op = analogRead(A8);
     psi_op = -(psi_op * (5.0 / 1023.0)) + 2.5;
     psi_op = psi_op * c_op;
-    tangent_offset1 = psi_op * PI * 2 * r_o;
-    psi_offset1 = psi_c - psi_o;
+    tangent_offsets[cnt_offset] = psi_op * PI * 2 * r_o;
+    psi_offsets[cnt_offset] = psi_c - psi_o;
 
     A = 0, B = 0;
     for (int i = 0; i < dim_z; i++)
@@ -474,9 +541,20 @@ void loop()
       A += psi[i] * c[2][i];
       B += psi[i] * c[1][i];
     }
-    A_offset1 = A;
-    B_offset1 = B;
+    A_offsets[cnt_offset] = A;
+    B_offsets[cnt_offset] = B;
+    
+    cnt_offset++;
+    if (cnt_offset == 5){
+      cnt_offset = 0;
+    }
 
+    tf_selfoff = avg(avg_num,tf_selfoffs);
+    psi_offset = avg(avg_num, psi_offsets);
+    tangent_offset = avg(avg_num,tangent_offsets);
+    A_offset = avg(avg_num,A_offsets);
+    B_offset = avg(avg_num,B_offsets);
+    
     if (Serial3.available())
     {
       command = Serial3.read();
@@ -589,6 +667,29 @@ void loop()
           Serial3.println(pre_z[i]);
         }
         break;
+      case 'l': //H preprogrammed wave state
+        delete[] pre_z_state;
+        pre_z_state = new int[pre_num_z];
+        for (int i = 0; i < pre_num_z; i++)
+        {
+          val = Serial3.parseInt();
+          if (val>0)
+          {
+            pre_z_state[i] = int(val);
+          }
+          Serial3.println(pre_z_state[i]);
+        }
+        break;
+      case 'o': //
+        val = Serial3.parseFloat();
+        if (val > 0.0000001 || val<-0.0000001)
+        {
+          op_limit = val;
+          Serial3.println("op limit  target set!");
+          Serial3.println(op_limit);
+        }
+        break;
+      
       default:
         break;
       }
