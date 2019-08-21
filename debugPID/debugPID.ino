@@ -105,12 +105,12 @@ double psi_offset, tangent_offset;
 double tf_selfoff;
 double tf_offset;
 
-int avg_num = 5;
-double A_offsets[5];
-double B_offsets[5];
-double psi_offsets[5];
-double tangent_offsets[5];
-double tf_selfoffs[5];
+const int avg_num = 5;
+double A_offsets[avg_num];
+double B_offsets[avg_num];
+double psi_offsets[avg_num];
+double tangent_offsets[avg_num];
+double tf_selfoffs[avg_num];
 int cnt_offset = 0;
 
 //flag
@@ -270,29 +270,6 @@ void loop()
           preTime_z += pre_z[cnt_z];
           cnt_z++;
         }
-
-        // if (thisTime - lastTime_z > preTime_z)
-        // {
-        //   if (pre_z[cnt_z] > 0)
-        //   {
-        //     digitalWrite(H2, LOW);
-        //     digitalWrite(H3, LOW);
-        //     digitalWrite(H1, state_z);
-        //     digitalWrite(H4, state_z);
-        //     cnt_z++;
-        //     preTime_z += pre_z[cnt_z];
-        //   }
-        //   else
-        //   {
-        //     digitalWrite(H1, LOW);
-        //     digitalWrite(H4, LOW);
-        //     digitalWrite(H2, state_z);
-        //     digitalWrite(H3, state_z);
-        //     cnt_z++;
-        //     preTime_z += -pre_z[cnt_z];
-        //   }
-        //   state_z = 1 - state_z;
-        // }
       }
     }
 
@@ -680,13 +657,13 @@ void loop()
           Serial3.println(pre_z_state[i]);
         }
         break;
-      case 'o': //
+      case 'o': //op limitation
         val = Serial3.parseFloat();
         if (val > 0.0000001 || val<-0.0000001)
         {
           op_limit = val;
           Serial3.println("op limit  target set!");
-          Serial3.println(op_limit);
+          Serial3.println(op_limit,10);
         }
         break;
       
