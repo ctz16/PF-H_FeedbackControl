@@ -73,6 +73,7 @@ byte cnt_z = 0;
 volatile byte cnt_r = 0;
 unsigned long thisTime = 0;
 unsigned long lastTime_z = 0;
+int preTime_z = 0;
 volatile byte state_r = HIGH;
 byte state_z = HIGH;
 
@@ -117,19 +118,20 @@ ISR(TIMER5_COMPA_vect)
   if (cnt_r >= pre_num_r)
   {
     bitClear(TIMSK5, OCIE5A);
-    digitalWrite(PF,LOW);
+    digitalWrite(PF, LOW);
   }
-  else{
+  else
+  {
     OCR5A = 2 * pre_r[cnt_r];
     digitalWrite(PF, state_r);
-    state_r = 1 - state_r; 
+    state_r = 1 - state_r;
   }
 }
 
 void setup()
 {
   noInterrupts();
-  
+
   pinMode(PF, OUTPUT);
   pinMode(H1, OUTPUT);
   pinMode(H2, OUTPUT);
@@ -181,58 +183,58 @@ void loop()
       //some initiation
       TimefromTrigger = micros() - triggerTime;
       delayMicroseconds(delayfromTrigger - TimefromTrigger - delta_time);
-      
+
       digitalWrite(PF, state_r);
       state_r = 1 - state_r;
       OCR5A = 2 * pre_r[0];
       TCNT5 = 0;
       bitSet(TIFR5, OCF5A);
       bitSet(TIMSK5, OCIE5A);
-      
-      if (pre_z[0] > 0){
+
+      if (pre_z[0] > 0)
+      {
         digitalWrite(H1, state_z);
         digitalWrite(H4, state_z);
       }
-      else{
+      else
+      {
         digitalWrite(H2, state_z);
         digitalWrite(H3, state_z);
       }
       state_z = 1 - state_z;
       lastTime_z = micros();
-      
+      preTime_z = pre_z[0];
+
       initFlag = false;
     }
 
     //polling to control H preprogrammed waveform
     else if (cnt_r < pre_num_r)
     {
-      if(cnt_z<pre_num_z){
+      if (cnt_z < pre_num_z - 1)
+      {
         thisTime = micros();
-        if (pre_z[cnt_z] > 0)
+        if (thisTime - lastTime_z > preTime_z)
         {
-          if (thisTime - lastTime_z > pre_z[cnt_z])
+          if (pre_z[cnt_z] > 0)
           {
             digitalWrite(H2, LOW);
             digitalWrite(H3, LOW);
             digitalWrite(H1, state_z);
             digitalWrite(H4, state_z);
-            state_z = 1 - state_z;
-            lastTime_z = micros();
             cnt_z++;
+            preTime_z += pre[cnt_z];
           }
-        }
-        else
-        {
-          if (thisTime - lastTime_z > -pre_z[cnt_z])
+          else
           {
             digitalWrite(H1, LOW);
             digitalWrite(H4, LOW);
             digitalWrite(H2, state_z);
             digitalWrite(H3, state_z);
-            state_z = 1 - state_z;
-            lastTime_z = micros();
             cnt_z++;
+            preTime_z += -pre_z[cnt_z];
           }
+          state_z = 1 - state_z;
         }
       }
     }
@@ -253,7 +255,7 @@ void loop()
     else
     {
 
-     /*
+      /*
      * read psi for z_out
      * arduino read from 0~5V but signal from 2.5 to -2.5V
      * psi[0] are flux loop
@@ -370,9 +372,9 @@ void loop()
       checkPF[cnt] = D_PF;
       checkZOut[cnt] = z_out;
       checkDutyZ[cnt] = duty_z;
-  
+
       cnt++;
-  
+
       if (cnt > 99)
       {
         cnt = 0;
@@ -397,6 +399,37 @@ void loop()
         digitalWrite(H2, LOW);
         digitalWrite(H3, LOW);
         digitalWrite(H4, LOW);
+
+        Serial3.println("ROut");
+        for (int i = 0; i < 100; i++)
+        {
+          Serial3.println(checkROut[i], 10);
+        }
+        Serial3.println("D_PF");
+        for (int i = 0; i < 100; i++)
+        {
+          Serial3.println(checkPF[i]);
+        }
+        Serial3.println("ZOut");
+        for (int i = 0; i < 100; i++)
+        {
+          Serial3.println(checkZOut[i], 10);
+        }
+        Serial3.println("duty_z");
+        for (int i = 0; i < 100; i++)
+        {
+          Serial3.println(checkDutyZ[i]);
+        }
+        Serial3.println("probe");
+        for (int i = 0; i < 10; i++)
+        {
+          Serial3.print("p");
+          Serial3.println(i);
+          for (int j = 0; j < 100; j++)
+          {
+            Serial3.println(checkProbe[i][j], 10);
+          }
+        }
       }
     }
   }
