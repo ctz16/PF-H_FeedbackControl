@@ -666,7 +666,18 @@ void loop()
           Serial3.println(op_limit,10);
         }
         break;
-      
+      case 't': //op limitation
+        val = Serial3.parseFloat();
+        if (val == 1)
+        {
+          isTFdivided = true;
+        }
+        else if (val==2){
+          isTFdivided = false;
+        }
+        Serial3.println("TF mode set!");
+        Serial3.println(isTFdivided);
+        break;      
       default:
         break;
       }
