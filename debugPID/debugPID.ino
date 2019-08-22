@@ -8,11 +8,11 @@ double z_out;
 double A, B;
 
 //calibration coefficients
-const double c_op = -0.0504334;
-const double c_c = -0.000919975;
-const double c_o[2] = {0.00934779, 0.00952129};
-const double c_so[6] = {-0.0116987, -0.0137233, -0.0116096, -0.00803445, 0.0120827, 0.0135117};
-const double c_bt = 0.083102499;
+double c_op = -0.0504334;
+double c_c = -0.000919975;
+double c_o = 0.00934779;
+double c_so[6] = {-0.0116987, -0.0137233, -0.0116096, -0.00803445, 0.0120827, 0.0135117};
+double c_bt = 0.083102499;
 
 //coefficients of fitting (X_T*X)^-1*X_T X=z
 const double c[3][7] = {
@@ -20,9 +20,9 @@ const double c[3][7] = {
     {0.78498737, 0.61369047, 0.37636976, 0.035726801, -0.33225523, -0.58251984, -0.89599924},
     {4.1828246, 0.48285854, -2.6519288, -4.0549021, -2.4798069, 0.024828931, 4.4961242}};
 
-const double tfoff_so[6] = {0.000378215, -0.000524829, -0.00155499, -0.000648422, 0.000982490, 0.00128668};
-const double tfoff_c[2] = {-0.000129345, -0.000101060};
-const double tfoff_op = 0.00415151;
+double tfoff_so[6] = {0.000378215, -0.000524829, -0.00155499, -0.000648422, 0.000982490, 0.00128668};
+double tfoff_c = -0.000129345;
+double tfoff_op = 0.00415151;
 
 //pin mapping
 const int triggerPin = 20;
@@ -74,7 +74,6 @@ int *pre_z = new int(1);
 byte cnt_z = 0;
 int *pre_z_state = new int(1);
 
-
 volatile byte cnt_r = 0;
 unsigned long thisTime = 0;
 unsigned long lastTime_z = 0;
@@ -122,13 +121,14 @@ bool isTFdivided = true;
 double c_tfdivide = 2;
 double op_limit = 0.0005;
 
-double avg(int num, double* x){
+double avg(int num, double *x)
+{
   double sum = 0;
   for (int i = 0; i < num; i++)
   {
     sum += x[i];
   }
-  return sum/num;
+  return sum / num;
 }
 
 void triggerISR()
@@ -211,7 +211,8 @@ void loop()
       TimefromTrigger = micros() - triggerTime;
       delayMicroseconds(delayfromTrigger - TimefromTrigger - delta_time);
 
-      if(pre_num_r>0){
+      if (pre_num_r > 0)
+      {
         digitalWrite(PF, state_r);
         state_r = 1 - state_r;
         OCR5A = 2 * pre_r[0];
@@ -232,39 +233,40 @@ void loop()
       if (cnt_z < pre_num_z)
       {
         thisTime = micros() - lastTime_z;
-        if(thisTime > preTime_z){
+        if (thisTime > preTime_z)
+        {
           switch (pre_z_state[cnt_z])
           {
           case 1:
             digitalWrite(H1, HIGH);
             digitalWrite(H2, LOW);
             digitalWrite(H3, LOW);
-            digitalWrite(H4, HIGH);            
+            digitalWrite(H4, HIGH);
             break;
           case 2:
             digitalWrite(H1, HIGH);
             digitalWrite(H2, LOW);
             digitalWrite(H3, LOW);
-            digitalWrite(H4, LOW);            
+            digitalWrite(H4, LOW);
             break;
           case 3:
             digitalWrite(H1, LOW);
             digitalWrite(H2, HIGH);
             digitalWrite(H3, HIGH);
-            digitalWrite(H4, LOW);            
+            digitalWrite(H4, LOW);
             break;
           case 4:
             digitalWrite(H1, LOW);
             digitalWrite(H2, LOW);
             digitalWrite(H3, HIGH);
-            digitalWrite(H4, LOW);            
-            break; 
+            digitalWrite(H4, LOW);
+            break;
           case 5:
             digitalWrite(H1, LOW);
             digitalWrite(H2, LOW);
             digitalWrite(H3, LOW);
-            digitalWrite(H4, LOW);            
-            break;           
+            digitalWrite(H4, LOW);
+            break;
           default:
             break;
           }
@@ -295,11 +297,12 @@ void loop()
      * psi[0] are flux loop
      * psi[1] to psi[6] are saddle loop
      */
-      
+
       tf = analogRead(A10);
       tf = -(tf * (5.0 / 1023.0)) + 2.5;
-      if(isTFdivided){
-        tf = tf*c_tfdivide;
+      if (isTFdivided)
+      {
+        tf = tf * c_tfdivide;
       }
       tf = c_bt * tf - tf_selfoff;
       checkProbe[9][cnt] = tf;
@@ -314,7 +317,7 @@ void loop()
       //O0
       psi[0] = analogRead(A7);
       psi[0] = -(psi[0] * (5.0 / 1023.0)) + 2.5;
-      psi[0] = psi[0] * c_o[0] - tf * tfoff_c[0];
+      psi[0] = psi[0] * c_o - tf * tfoff_c;
       checkProbe[0][cnt] = psi[0];
 
       for (int i = 1; i < dim_z; i++)
@@ -327,7 +330,7 @@ void loop()
       //read C0 and Bp
       psi_c = analogRead(A9);
       psi_c = -(psi_c * (5.0 / 1023.0)) + 2.5;
-      psi_c = psi_c * c_c - tf * tfoff_c[0];
+      psi_c = psi_c * c_c - tf * tfoff_c;
       checkProbe[7][cnt] = psi_c;
       psi_o = psi[3]; //3 is outboard center loop
       psi_op = analogRead(A8);
@@ -482,8 +485,9 @@ void loop()
   {
     tf = analogRead(A10);
     tf = -(tf * (5.0 / 1023.0)) + 2.5;
-    if (isTFdivided){
-      tf = tf*c_tfdivide;
+    if (isTFdivided)
+    {
+      tf = tf * c_tfdivide;
     }
     tf = c_bt * tf;
     tf_selfoffs[cnt_offset] = tf;
@@ -497,7 +501,7 @@ void loop()
 
     psi[0] = analogRead(A7);
     psi[0] = -(psi[0] * (5.0 / 1023.0)) + 2.5;
-    psi[0] = psi[0] * c_o[0];
+    psi[0] = psi[0] * c_o;
 
     for (int i = 1; i < dim_z; i++)
     {
@@ -523,19 +527,19 @@ void loop()
     }
     A_offsets[cnt_offset] = A;
     B_offsets[cnt_offset] = B;
-    
+
     cnt_offset++;
-    if (cnt_offset == avg_num){
+    if (cnt_offset == avg_num)
+    {
       cnt_offset = 0;
     }
 
-    tf_selfoff = avg(avg_num,tf_selfoffs);
+    tf_selfoff = avg(avg_num, tf_selfoffs);
     psi_offset = avg(avg_num, psi_offsets);
-    tangent_offset = avg(avg_num,tangent_offsets);
-    A_offset = avg(avg_num,A_offsets);
-    B_offset = avg(avg_num,B_offsets);
+    tangent_offset = avg(avg_num, tangent_offsets);
+    A_offset = avg(avg_num, A_offsets);
+    B_offset = avg(avg_num, B_offsets);
 
-    
     if (Serial3.available())
     {
       command = Serial3.read();
@@ -543,110 +547,74 @@ void loop()
       {
       case 'r': //r target
         val = Serial3.parseFloat();
-        if (val > 0)
-        {
-          r_t = val;
-          Serial3.println("r target set!");
-          Serial3.println(r_t);
-        }
+        r_t = val;
+        Serial3.println("r target set!");
+        Serial3.println(r_t);
         break;
       case 'z': //z target
         val = Serial3.parseFloat();
-        if (val > 0.000001 || val < -0.000001)
-        {
-          z_t = val;
-          Serial3.println("z target set!");
-          Serial3.println(z_t);
-        }
+        z_t = val;
+        Serial3.println("z target set!");
+        Serial3.println(z_t);
         break;
       case 's': //delay to start preprogrammed wave
         val = Serial3.parseInt();
-        if (val > 0)
-        {
-          delayfromTrigger = val;
-          Serial3.println("delay set!");
-          Serial3.println(delayfromTrigger);
-        }
+        delayfromTrigger = val;
+        Serial3.println("delay set!");
+        Serial3.println(delayfromTrigger);
       case 'f': //default_pf
         val = Serial3.parseInt();
-        if (val > 0)
-        {
-          PF_default = val;
-          Serial3.println("pf default set!");
-          Serial3.println(PF_default);
-        }
+        PF_default = val;
+        Serial3.println("pf default set!");
+        Serial3.println(PF_default);
         break;
       case 'p': //Kz_p
         val = Serial3.parseFloat();
-        if (val > 0.000001 || val < -0.000001)
-        {
-          Kz_p = val;
-          Serial3.println("Kz_p set!");
-          Serial3.println(Kz_p);
-        }
+        Kz_p = val;
+        Serial3.println("Kz_p set!");
+        Serial3.println(Kz_p);
         break;
       case 'i': //Kz_i
         val = Serial3.parseFloat();
-        if (val > 0.0000001 || val < -0.0000001)
-        {
-          Kz_i = val;
-          Serial3.println("Kz_i set!");
-          Serial3.println(Kz_i);
-        }
+        Kz_i = val;
+        Serial3.println("Kz_i set!");
+        Serial3.println(Kz_i);
         break;
       case 'x': //Kr_p
         val = Serial3.parseFloat();
-        if (val > 0)
-        {
-          Kr_p = val;
-          Serial3.println("Kr_p set!");
-          Serial3.println(Kr_p);
-        }
+        Kr_p = val;
+        Serial3.println("Kr_p set!");
+        Serial3.println(Kr_p);
         break;
       case 'y': //Kr_i
         val = Serial3.parseFloat();
-        if (val > 0)
-        {
-          Kr_i = val;
-          Serial3.println("Kr_i set!");
-          Serial3.println(Kr_i);
-        }
+        Kr_i = val;
+        Serial3.println("Kr_i set!");
+        Serial3.println(Kr_i);
         break;
       case 'm': //PF preprogrammed wave
         val = Serial3.parseInt();
-        if (val > 0)
-        {
-          pre_num_r = val;
-          delete[] pre_r;
-          pre_r = new int[pre_num_r];
-        }
+        pre_num_r = val;
+        delete[] pre_r;
+        pre_r = new int[pre_num_r];
         Serial3.println("PF preprogrammed wave set!");
         for (int i = 0; i < pre_num_r; i++)
         {
           val = Serial3.parseInt();
-          if (val > 0)
-          {
-            pre_r[i] = int(val);
-          }
+          pre_r[i] = int(val);
           Serial3.println(pre_r[i]);
         }
         break;
       case 'n': //H preprogrammed wave
         val = Serial3.parseInt();
-        if (val > 0)
-        {
-          pre_num_z = val;
-          delete[] pre_z;
-          pre_z = new int[pre_num_z];
-        }
+        pre_num_z = val;
+        delete[] pre_z;
+        pre_z = new int[pre_num_z];
         Serial3.println("H preprogrammed wave set!");
         for (int i = 0; i < pre_num_z; i++)
         {
           val = Serial3.parseInt();
-          if (val > 0.000001 || val < -0.000001)
-          {
-            pre_z[i] = int(val);
-          }
+          pre_z[i] = int(val);
           Serial3.println(pre_z[i]);
         }
         break;
@@ -657,21 +625,15 @@ void loop()
         {
           Serial3.println("H wave state set!");
           val = Serial3.parseInt();
-          if (val>0)
-          {
-            pre_z_state[i] = int(val);
-          }
+          pre_z_state[i] = int(val);
           Serial3.println(pre_z_state[i]);
         }
         break;
       case 'o': //op limitation
         val = Serial3.parseFloat();
-        if (val > 0.0000001 || val<-0.0000001)
-        {
-          op_limit = val;
-          Serial3.println("op limit target set!");
-          Serial3.println(op_limit,10);
-        }
+        op_limit = val;
+        Serial3.println("op limit target set!");
+        Serial3.println(op_limit, 10);
         break;
       case 't': //op limitation
         val = Serial3.parseInt();
@@ -679,12 +641,67 @@ void loop()
         {
           isTFdivided = true;
         }
-        else if (val==2){
+        else if (val == 2)
+        {
           isTFdivided = false;
         }
         Serial3.println("TF mode set!");
         Serial3.println(isTFdivided);
-        break;      
+        break;
+      case 'A':
+        val = Serial3.parseFloat();
+        c_op = val;
+        Serial3.println("c_op set!");
+        Serial3.println(c_op);
+        break;
+      case 'B':
+        val = Serial3.parseFloat();
+        c_c = val;
+        Serial3.println("c_c set!");
+        Serial3.println(c_c);
+        break;
+      case 'C':
+        val = Serial3.parseFloat();
+        c_o = val;
+        Serial3.println("c_o set!");
+        Serial3.println(c_o);
+        break;
+      case 'D': //r target
+        Serial3.println("c_so set!");
+        for (int i = 0; i < 6; i++)
+        {
+          val = Serial3.parseFloat();
+          c_so[i] = val;
+          Serial3.println(c_so[i]);
+        }
+        break;
+      case 'D':
+        val = Serial3.parseFloat();
+        c_bt = val;
+        Serial3.println("c_bt set!");
+        Serial3.println(c_bt);
+        break;
+      case 'E': //r target
+        Serial3.println("tfoff_so set!");
+        for (int i = 0; i < 6; i++)
+        {
+          val = Serial3.parseFloat();
+          tfoff_so[i] = val;
+          Serial3.println(tfoff_so[i]);
+        }
+        break;
+      case 'F':
+        val = Serial3.parseFloat();
+        tfoff_c = val;
+        Serial3.println("tfoff_c set!");
+        Serial3.println(tfoff_c);
+        break;
+      case 'G':
+        val = Serial3.parseFloat();
+        tfoff_op = val;
+        Serial3.println("tfoff_op set!");
+        Serial3.println(tfoff_op);
+        break;
       default:
         break;
       }
