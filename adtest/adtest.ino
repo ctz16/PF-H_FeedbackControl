@@ -3,5 +3,7 @@ void setup() {
 }
 
 void loop() {
-  Serial.println(LOW);
+  double tf = analogRead(A10);
+  tf = -(tf * (5.0 / 1023.0)) + 2.5;
+  Serial.println(tf,7);
 }

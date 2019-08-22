@@ -119,7 +119,8 @@ volatile bool initFlag = true;
 volatile bool pwmFlag = true;
 
 bool isTFdivided = true;
-int op_limit = 0.0005;
+double c_tfdivide = 2;
+double op_limit = 0.0005;
 
 double avg(int num, double* x){
   double sum = 0;
@@ -298,7 +299,7 @@ void loop()
       tf = analogRead(A10);
       tf = -(tf * (5.0 / 1023.0)) + 2.5;
       if(isTFdivided){
-        tf = tf/2;
+        tf = tf*c_tfdivide;
       }
       tf = c_bt * tf - tf_selfoff;
       checkProbe[9][cnt] = tf;
@@ -413,7 +414,6 @@ void loop()
 
       if (cnt > 99 || psi_op < op_limit)
       {
-        cnt = 0;
         cnt_r = 0;
         cnt_z = 0;
         duty_z = 0;
@@ -436,23 +436,25 @@ void loop()
         digitalWrite(H3, LOW);
         digitalWrite(H4, LOW);
 
+        Serial3.println("cnt");
+        Serial3.println(cnt);
         Serial3.println("ROut");
-        for (int i = 0; i < 100; i++)
+        for (int i = 0; i < cnt; i++)
         {
           Serial3.println(checkROut[i], 10);
         }
         Serial3.println("D_PF");
-        for (int i = 0; i < 100; i++)
+        for (int i = 0; i < cnt; i++)
         {
           Serial3.println(checkPF[i]);
         }
         Serial3.println("ZOut");
-        for (int i = 0; i < 100; i++)
+        for (int i = 0; i < cnt; i++)
         {
           Serial3.println(checkZOut[i], 10);
         }
         Serial3.println("duty_z");
-        for (int i = 0; i < 100; i++)
+        for (int i = 0; i < cnt; i++)
         {
           Serial3.println(checkDutyZ[i]);
         }
@@ -461,16 +463,17 @@ void loop()
         {
           Serial3.print("p");
           Serial3.println(i);
-          for (int j = 0; j < 100; j++)
+          for (int j = 0; j < cnt; j++)
           {
             Serial3.println(checkProbe[i][j], 10);
           }
         }
         Serial3.println("time");
-        for (int i = 0; i < 100; i++)
+        for (int i = 0; i < cnt; i++)
         {
           Serial3.println(checktime[i]);
         }
+        cnt = 0;
       }
     }
   }
@@ -480,7 +483,7 @@ void loop()
     tf = analogRead(A10);
     tf = -(tf * (5.0 / 1023.0)) + 2.5;
     if (isTFdivided){
-      tf = tf/2;
+      tf = tf*c_tfdivide;
     }
     tf = c_bt * tf;
     tf_selfoffs[cnt_offset] = tf;
@@ -522,7 +525,7 @@ void loop()
     B_offsets[cnt_offset] = B;
     
     cnt_offset++;
-    if (cnt_offset == 5){
+    if (cnt_offset == avg_num){
       cnt_offset = 0;
     }
 
@@ -531,6 +534,7 @@ void loop()
     tangent_offset = avg(avg_num,tangent_offsets);
     A_offset = avg(avg_num,A_offsets);
     B_offset = avg(avg_num,B_offsets);
+
     
     if (Serial3.available())
     {
@@ -616,6 +620,7 @@ void loop()
           delete[] pre_r;
           pre_r = new int[pre_num_r];
         }
+        Serial3.println("PF preprogrammed wave set!");
         for (int i = 0; i < pre_num_r; i++)
         {
           val = Serial3.parseInt();
@@ -634,6 +639,7 @@ void loop()
           delete[] pre_z;
           pre_z = new int[pre_num_z];
         }
+        Serial3.println("H preprogrammed wave set!");
         for (int i = 0; i < pre_num_z; i++)
         {
           val = Serial3.parseInt();
@@ -649,6 +655,7 @@ void loop()
         pre_z_state = new int[pre_num_z];
         for (int i = 0; i < pre_num_z; i++)
         {
+          Serial3.println("H wave state set!");
           val = Serial3.parseInt();
           if (val>0)
           {
@@ -662,12 +669,12 @@ void loop()
         if (val > 0.0000001 || val<-0.0000001)
         {
           op_limit = val;
-          Serial3.println("op limit  target set!");
+          Serial3.println("op limit target set!");
           Serial3.println(op_limit,10);
         }
         break;
       case 't': //op limitation
-        val = Serial3.parseFloat();
+        val = Serial3.parseInt();
         if (val == 1)
         {
           isTFdivided = true;
