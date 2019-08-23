@@ -12,7 +12,7 @@ double c_op = -0.0504334;
 double c_c = -0.000919975;
 double c_o = 0.00934779;
 double c_so[6] = {-0.0116987, -0.0137233, -0.0116096, -0.00803445, 0.0120827, 0.0135117};
-double c_bt = 0.083102499;
+double c_bt = 0.083102499; //0.23697243//0.2493075
 
 //coefficients of fitting (X_T*X)^-1*X_T X=z
 const double c[3][7] = {
@@ -117,8 +117,6 @@ volatile bool triggerflag = false;
 volatile bool initFlag = true;
 volatile bool pwmFlag = true;
 
-bool isTFdivided = true;
-double c_tfdivide = 3; //input impedance problem
 double op_limit = 0.005;
 
 double avg(int num, double *x)
@@ -300,10 +298,6 @@ void loop()
 
       tf = analogRead(A10);
       tf = -(tf * (5.0 / 1023.0)) + 2.5;
-      if (isTFdivided)
-      {
-        tf = tf * c_tfdivide;
-      }
       tf = c_bt * tf - tf_selfoff;
       checkProbe[9][cnt] = tf;
 
@@ -485,10 +479,6 @@ void loop()
   {
     tf = analogRead(A10);
     tf = -(tf * (5.0 / 1023.0)) + 2.5;
-    if (isTFdivided)
-    {
-      tf = tf * c_tfdivide;
-    }
     tf = c_bt * tf;
     tf_selfoffs[cnt_offset] = tf;
 
