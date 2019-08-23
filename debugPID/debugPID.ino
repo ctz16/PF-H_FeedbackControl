@@ -118,8 +118,8 @@ volatile bool initFlag = true;
 volatile bool pwmFlag = true;
 
 bool isTFdivided = true;
-double c_tfdivide = 2;
-double op_limit = 0.0005;
+double c_tfdivide = 3; //input impedance problem
+double op_limit = 0.005;
 
 double avg(int num, double *x)
 {
@@ -652,34 +652,28 @@ void loop()
         val = Serial3.parseFloat();
         c_op = val;
         Serial3.println("c_op set!");
-        Serial3.println(c_op);
+        Serial3.println(c_op,10);
         break;
       case 'B':
         val = Serial3.parseFloat();
         c_c = val;
         Serial3.println("c_c set!");
-        Serial3.println(c_c);
+        Serial3.println(c_c,10);
         break;
       case 'C':
         val = Serial3.parseFloat();
         c_o = val;
         Serial3.println("c_o set!");
-        Serial3.println(c_o);
+        Serial3.println(c_o,10);
         break;
-      case 'D': //r target
+      case 'D': 
         Serial3.println("c_so set!");
         for (int i = 0; i < 6; i++)
         {
           val = Serial3.parseFloat();
           c_so[i] = val;
-          Serial3.println(c_so[i]);
+          Serial3.println(c_so[i],10);
         }
-        break;
-      case 'D':
-        val = Serial3.parseFloat();
-        c_bt = val;
-        Serial3.println("c_bt set!");
-        Serial3.println(c_bt);
         break;
       case 'E': //r target
         Serial3.println("tfoff_so set!");
@@ -687,20 +681,26 @@ void loop()
         {
           val = Serial3.parseFloat();
           tfoff_so[i] = val;
-          Serial3.println(tfoff_so[i]);
+          Serial3.println(tfoff_so[i],10);
         }
         break;
       case 'F':
         val = Serial3.parseFloat();
         tfoff_c = val;
         Serial3.println("tfoff_c set!");
-        Serial3.println(tfoff_c);
+        Serial3.println(tfoff_c,10);
         break;
       case 'G':
         val = Serial3.parseFloat();
         tfoff_op = val;
         Serial3.println("tfoff_op set!");
-        Serial3.println(tfoff_op);
+        Serial3.println(tfoff_op,10);
+        break;
+      case 'H':
+        val = Serial3.parseFloat();
+        c_bt = val;
+        Serial3.println("c_bt set!");
+        Serial3.println(c_bt,10);
         break;
       default:
         break;
