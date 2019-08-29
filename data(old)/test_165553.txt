@@ -1,0 +1,58 @@
+Kr_p set!
+1500.00
+Kr_i set!
+300.00
+Kz_p set!
+-625.00
+Kz_i set!
+-16.00
+pf default set!
+125
+PF preprogrammed wave set!
+3400
+1900
+1800
+500
+r target set!
+0.32
+z target set!
+0.02
+op limit target set!
+0.0010000001
+TF mode set!
+1
+c_bt set!
+0.12
+cnt
+1
+ROut
+1.0021234750
+D_PF
+0
+ZOut
+0.0741085100
+duty_z
+-34
+probe
+p0
+-0.0180029687
+p1
+0.0013757972
+p2
+-0.0014298595
+p3
+-0.0009999401
+p4
+0.0003209314
+p5
+0.0016056017
+p6
+0.0012690575
+p7
+-0.0220524501
+p8
+-0.0003375783
+p9
+-0.2095777273
+time
+18912.00

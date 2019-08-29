@@ -2,7 +2,8 @@
 
 ; Rout, Zout
 
-shot = 165073
+;shot = 165073
+shot = 165527
 
 mdsopen, 'tst2', shot
 
