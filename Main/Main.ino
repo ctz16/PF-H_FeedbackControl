@@ -60,11 +60,11 @@ int duty_r;
 //PID coefficient
 double Kr_p = 0.01; //50
 double Kr_i = 0.01;
-//double Kr_d = 0.1;
+double Kr_d = 0.1;
 
 double Kz_p = 0.01; //50
 double Kz_i = 0.01;
-//double Kz_d = 0.1;
+double Kz_d = 0.1;
 
 // preprogrammed waveform
 volatile byte pre_num_r = 0;
@@ -358,7 +358,7 @@ void loop()
       /* check r_out and change duty cycle */
       error_r = r_out - r_t;
       cumuError_r += error_r;
-      duty_r = int(Kr_p * error_r + Kr_i * cumuError_r + PF_default);
+      duty_r = int(Kr_p * error_r + Kr_i * cumuError_r + Kr_d*(error_r-lastError_r) + PF_default);
       if (duty_r > 255)
       {
         duty_r = 255;
@@ -369,11 +369,12 @@ void loop()
       }
       D_PF = 255 - duty_r;
       lastDuty_r = duty_r;
+      lastError_r = error_r;
 
       /* check z_out and change duty cycle */
       error_z = z_out - z_t;
       cumuError_z += error_z;
-      duty_z = int(Kz_p * error_z + Kz_i * cumuError_z);
+      duty_z = int(Kz_p * error_z + Kz_i * cumuError_z + Kz_d*(error_z-lastError_z));
       if (duty_z > 255)
       {
         duty_z = 255;
@@ -408,6 +409,7 @@ void loop()
       }
 
       lastDuty_z = duty_z;
+      lastError_z = error_z;
 
       checkROut[cnt] = r_out;
       checkPF[cnt] = D_PF;
@@ -428,6 +430,8 @@ void loop()
         lastDuty_r = 0;
         cumuError_z = 0;
         cumuError_r = 0;
+        lastError_r = 0;
+        lastError_z = 0;
         state_r = HIGH;
         state_z = HIGH;
         triggerflag = false;
@@ -546,13 +550,13 @@ void loop()
       command = Serial3.read();
       switch (command)
       {
-      case 'r': //r target
+      case 'R': //r target
         val = Serial3.parseFloat();
         r_t = val;
         Serial3.println("r target set!");
         Serial3.println(r_t);
         break;
-      case 'z': //z target
+      case 'Z': //z target
         val = Serial3.parseFloat();
         z_t = val;
         Serial3.println("z target set!");
@@ -581,6 +585,12 @@ void loop()
         Serial3.println("Kz_i set!");
         Serial3.println(Kz_i);
         break;
+      case 'd': //Kz_i
+        val = Serial3.parseFloat();
+        Kz_d = val;
+        Serial3.println("Kz_d set!");
+        Serial3.println(Kz_d);
+        break;
       case 'x': //Kr_p
         val = Serial3.parseFloat();
         Kr_p = val;
@@ -592,6 +602,12 @@ void loop()
         Kr_i = val;
         Serial3.println("Kr_i set!");
         Serial3.println(Kr_i);
+        break;
+      case 'z': //Kr_d
+        val = Serial3.parseFloat();
+        Kr_d = val;
+        Serial3.println("Kr_d set!");
+        Serial3.println(Kr_d);
         break;
       case 'm': //PF preprogrammed wave
         val = Serial3.parseInt();
