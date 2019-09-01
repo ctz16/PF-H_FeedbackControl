@@ -59,12 +59,14 @@ If it's Ohmic discharge, run ```./configureOH.sh``` to send all the calibration 
 |    G    |     tfoff_op     | double |                coefficient of tf offset on op                |
 |    H    |     tfoff_o      | double |                coefficient of tf offset on o0                |
 |    I    |       c_bt       | double |                  tf calibration coefficient                  |
-|    r    |       r_t        | double |                         R target [m]                         |
-|    z    |       z_t        | double |                         z target [m]                         |
+|    R    |       r_t        | double |                         R target [m]                         |
+|    Z    |       z_t        | double |                         z target [m]                         |
 |    p    |       Kz_p       | double |                  P coefficient on z control                  |
 |    i    |       Kz_i       | double |                  I coefficient on z control                  |
+|    d    |       Kz_d       | double |                  D coefficient on z control                  |
 |    x    |       Kr_p       | double |                  P coefficient on R control                  |
 |    y    |       Kr_i       | double |                  I coefficient on R control                  |
+|    z    |       Kr_d       | double |                  D coefficient on R control                  |
 |    s    | delayfromTrigger |  long  |  time between trigger and first PF3 preprogrammed wave [us]  |
 |    f    |    PF_default    |  int   | the beginning duty cycle of PF3  after preprogrammed wave (0-255) |
 |    m    |     pre_r[]      |  int   |                    PF3 preprogrammed wave                    |
